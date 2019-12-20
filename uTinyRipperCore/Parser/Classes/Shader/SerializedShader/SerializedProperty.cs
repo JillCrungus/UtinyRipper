@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.Globalization;
 using System.IO;
 
@@ -11,7 +10,7 @@ namespace uTinyRipper.Classes.Shaders
 		{
 			Name = reader.ReadString();
 			Description = reader.ReadString();
-			m_attributes = reader.ReadStringArray();
+			Attributes = reader.ReadStringArray();
 			Type = (SerializedPropertyType)reader.ReadInt32();
 			Flags = (SerializedPropertyFlag)reader.ReadUInt32();
 			DefValue0 = reader.ReadSingle();
@@ -23,7 +22,7 @@ namespace uTinyRipper.Classes.Shaders
 
 		public void Export(TextWriter writer)
 		{
-			writer.WriteIntent(2);
+			writer.WriteIndent(2);
 			foreach(string attribute in Attributes)
 			{
 				writer.Write("[{0}] ", attribute);
@@ -137,18 +136,16 @@ namespace uTinyRipper.Classes.Shaders
 			writer.Write('\n');
 		}
 
-		public string Name { get; private set; }
-		public string Description { get; private set; }
-		public IReadOnlyList<string> Attributes => m_attributes;
-		public SerializedPropertyType Type { get; private set; }
-		public SerializedPropertyFlag Flags { get; private set; }
-		public float DefValue0 { get; private set; }
-		public float DefValue1 { get; private set; }
-		public float DefValue2 { get; private set; }
-		public float DefValue3 { get; private set; }
+		public string Name { get; set; }
+		public string Description { get; set; }
+		public string[] Attributes { get; set; }
+		public SerializedPropertyType Type { get; set; }
+		public SerializedPropertyFlag Flags { get; set; }
+		public float DefValue0 { get; set; }
+		public float DefValue1 { get; set; }
+		public float DefValue2 { get; set; }
+		public float DefValue3 { get; set; }
 
 		public SerializedTextureProperty DefTexture;
-
-		private string[] m_attributes;
 	}
 }

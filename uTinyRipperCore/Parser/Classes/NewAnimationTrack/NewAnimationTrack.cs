@@ -1,5 +1,6 @@
-﻿using System.Collections.Generic;
 using uTinyRipper.Classes.NewAnimationTracks;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes
 {
@@ -14,13 +15,22 @@ namespace uTinyRipper.Classes
 		{
 			base.Read(reader);
 
-			m_curves = reader.ReadArray<Channel>();
-			AClassID = (ClassIDType)reader.ReadInt32();
+			Curves = reader.ReadAssetArray<Channel>();
+			AnimationClassID = (ClassIDType)reader.ReadInt32();
 		}
 
-		public IReadOnlyList<Channel> Curves => m_curves;
-		public ClassIDType AClassID { get; private set; }
+		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
+		{
+			YAMLMappingNode node = base.ExportYAMLRoot(container);
+			node.Add(CurvesName, Curves.ExportYAML(container));
+			node.Add(ClassIDName, (int)AnimationClassID);
+			return node;
+		}
 
-		private Channel[] m_curves;
+		public Channel[] Curves { get; set; }
+		public ClassIDType AnimationClassID { get; set; }
+
+		public const string CurvesName = "m_Curves";
+		public const string ClassIDName = "m_ClassID";
 	}
 }

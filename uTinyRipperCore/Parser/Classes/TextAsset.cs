@@ -1,10 +1,13 @@
-﻿using System;
 using System.IO;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
+using System.Text;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes
 {
+	/// <summary>
+	/// Script previously
+	/// </summary>
 	public class TextAsset : NamedObject
 	{
 		public TextAsset(AssetInfo assetInfo):
@@ -15,19 +18,16 @@ namespace uTinyRipper.Classes
 		/// <summary>
 		/// Less than 2017.1
 		/// </summary>
-		public static bool IsReadPath(Version version)
-		{
-			return version.IsLess(2017);
-		}
+		public static bool HasPath(Version version) => version.IsLess(2017);
 
 		public override void Read(AssetReader reader)
 		{
 			base.Read(reader);
 
 			Script = reader.ReadByteArray();
-			reader.AlignStream(AlignType.Align4);
+			reader.AlignStream();
 
-			if(IsReadPath(reader.Version))
+			if (HasPath(reader.Version))
 			{
 				PathName = reader.ReadString();
 			}
@@ -41,19 +41,29 @@ namespace uTinyRipper.Classes
 			}
 		}
 
-		protected void ReadBase(AssetReader reader)
+		protected void ReadNamedObject(AssetReader reader)
 		{
 			base.Read(reader);
 		}
 
-		protected sealed override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
+		protected YAMLMappingNode ExportBaseYAMLRoot(IExportContainer container)
 		{
-			throw new NotSupportedException();
+			return base.ExportYAMLRoot(container);
 		}
-		
-		public override string ExportExtension => "bytes";
 
-		public byte[] Script { get; private set; }
-		public string PathName { get; private set; } = string.Empty;
+		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
+		{
+			YAMLMappingNode node = base.ExportYAMLRoot(container);
+			node.Add(ScriptName, Script.ExportYAML());
+			return node;
+		}
+
+		public string TextScript => Encoding.UTF8.GetString(Script);
+
+		// NOTE: originaly, it is a string. but, since binary files are serialized as TextAsset, we have to sctore its content as byte array
+		public byte[] Script { get; protected set; }
+		public string PathName { get; protected set; } = string.Empty;
+
+		public const string ScriptName = "m_Script";
 	}
 }

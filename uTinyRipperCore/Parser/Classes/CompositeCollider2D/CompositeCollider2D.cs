@@ -1,18 +1,22 @@
-﻿using System.Collections.Generic;
-using uTinyRipper.AssetExporters;
+using System.Collections.Generic;
 using uTinyRipper.Classes.CompositeCollider2Ds;
-using uTinyRipper.Classes.PolygonCollider2Ds;
-using uTinyRipper.Exporter.YAML;
-using uTinyRipper.SerializedFiles;
+using uTinyRipper.Classes.Misc;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes
 {
+	/// <summary>
+	/// SpriteCollider2D previously
+	/// </summary>
 	public sealed class CompositeCollider2D : Collider2D
 	{
-		public CompositeCollider2D(AssetInfo assetInfo):
+		public CompositeCollider2D(AssetInfo assetInfo) :
 			base(assetInfo)
 		{
 		}
+
+		public static bool HasOffsetDistance(Version version) => version.IsGreaterEqual(2019, 1, 3);
 
 		public override void Read(AssetReader reader)
 		{
@@ -21,49 +25,66 @@ namespace uTinyRipper.Classes
 			GeometryType = (GeometryType)reader.ReadInt32();
 			GenerationType = (GenerationType)reader.ReadInt32();
 			EdgeRadius = reader.ReadSingle();
-			m_colliderPaths = reader.ReadArray<SubCollider>();
-			reader.AlignStream(AlignType.Align4);
+			ColliderPaths = reader.ReadAssetArray<SubCollider>();
+			reader.AlignStream();
 
 			CompositePaths.Read(reader);
 			VertexDistance = reader.ReadSingle();
+			if (HasOffsetDistance(reader.Version))
+			{
+				OffsetDistance = reader.ReadSingle();
+			}
 		}
 
-		public override IEnumerable<Object> FetchDependencies(ISerializedFile file, bool isLog = false)
+		public override IEnumerable<PPtr<Object>> FetchDependencies(DependencyContext context)
 		{
-			foreach(Object asset in base.FetchDependencies(file, isLog))
+			foreach (PPtr<Object> asset in base.FetchDependencies(context))
 			{
 				yield return asset;
 			}
 
-			foreach (SubCollider collider in ColliderPaths)
+			foreach (PPtr<Object> asset in context.FetchDependencies(ColliderPaths, ColliderPathsName))
 			{
-				foreach(Object asset in collider.FetchDependencies(file, isLog))
-				{
-					yield return asset;
-				}
+				yield return asset;
 			}
 		}
-		
+
 		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
 		{
 			YAMLMappingNode node = base.ExportYAMLRoot(container);
-			node.Add("m_GeometryType", (int)GeometryType);
-			node.Add("m_GenerationType", (int)GenerationType);
-			node.Add("m_EdgeRadius", EdgeRadius);
-			node.Add("m_ColliderPaths", ColliderPaths.ExportYAML(container));
-			node.Add("m_CompositePaths", CompositePaths.ExportYAML(container));
-			node.Add("m_VertexDistance", VertexDistance);
+			node.Add(GeometryTypeName, (int)GeometryType);
+			node.Add(GenerationTypeName, (int)GenerationType);
+			node.Add(EdgeRadiusName, EdgeRadius);
+			node.Add(ColliderPathsName, ColliderPaths.ExportYAML(container));
+			node.Add(CompositePathsName, CompositePaths.ExportYAML(container));
+			node.Add(VertexDistanceName, VertexDistance);
+			if (HasOffsetDistance(container.ExportVersion))
+			{
+				node.Add(OffsetDistanceName, GetOffsetDistance(container.Version));
+			}
 			return node;
 		}
-		
-		public GeometryType GeometryType { get; private set; }
-		public GenerationType GenerationType { get; private set; }
-		public float EdgeRadius {get; private set; }
-		public IReadOnlyList<SubCollider> ColliderPaths => m_colliderPaths;
-		public float VertexDistance { get; private set; }
+
+		private float GetOffsetDistance(Version version)
+		{
+			return HasOffsetDistance(version) ? OffsetDistance : 0.000005f;
+		}
+
+		public GeometryType GeometryType { get; set; }
+		public GenerationType GenerationType { get; set; }
+		public float EdgeRadius { get; set; }
+		public SubCollider[] ColliderPaths { get; set; }
+		public float VertexDistance { get; set; }
+		public float OffsetDistance { get; set; }
+
+		public const string GeometryTypeName = "m_GeometryType";
+		public const string GenerationTypeName = "m_GenerationType";
+		public const string EdgeRadiusName = "m_EdgeRadius";
+		public const string ColliderPathsName = "m_ColliderPaths";
+		public const string CompositePathsName = "m_CompositePaths";
+		public const string VertexDistanceName = "m_VertexDistance";
+		public const string OffsetDistanceName = "m_OffsetDistance";
 
 		public Polygon2D CompositePaths;
-
-		private SubCollider[] m_colliderPaths;
 	}
 }

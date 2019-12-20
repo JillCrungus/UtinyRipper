@@ -1,14 +1,14 @@
-﻿using System.Collections.Generic;
-using uTinyRipper.AssetExporters;
+using System.Collections.Generic;
+using System.IO;
 using uTinyRipper.Classes.TerrainDatas;
-using uTinyRipper.Exporter.YAML;
-using uTinyRipper.SerializedFiles;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes
 {
 	public sealed class TerrainData : NamedObject
 	{
-		public TerrainData(AssetInfo assetInfo):
+		public TerrainData(AssetInfo assetInfo) :
 			base(assetInfo)
 		{
 		}
@@ -16,9 +16,11 @@ namespace uTinyRipper.Classes
 		/// <summary>
 		/// Less than 3.0.0
 		/// </summary>
-		public static bool IsReadLightmap(Version version)
+		public static bool HasLightmap(Version version) => version.IsLess(3);
+
+		public override Object Convert(IExportContainer container)
 		{
-			return version.IsLess(3);
+			return TerrainDataConverter.Convert(container, this);
 		}
 
 		public override void Read(AssetReader reader)
@@ -28,46 +30,70 @@ namespace uTinyRipper.Classes
 			SplatDatabase.Read(reader);
 			DetailDatabase.Read(reader);
 			Heightmap.Read(reader);
-			if (IsReadLightmap(reader.Version))
+			if (HasLightmap(reader.Version))
 			{
 				Lightmap.Read(reader);
 			}
 		}
 
-		public override IEnumerable<Object> FetchDependencies(ISerializedFile file, bool isLog = false)
+		public override void Write(AssetWriter writer)
 		{
-			foreach(Object asset in base.FetchDependencies(file, isLog))
+			base.Write(writer);
+
+			SplatDatabase.Write(writer);
+			DetailDatabase.Write(writer);
+			Heightmap.Write(writer);
+			if (HasLightmap(writer.Version))
+			{
+				Lightmap.Write(writer);
+			}
+		}
+
+		public override IEnumerable<PPtr<Object>> FetchDependencies(DependencyContext context)
+		{
+			foreach (PPtr<Object> asset in base.FetchDependencies(context))
 			{
 				yield return asset;
 			}
-			
-			foreach(Object asset in SplatDatabase.FetchDependencies(file, isLog))
+
+			foreach (PPtr<Object> asset in context.FetchDependencies(SplatDatabase, SplatDatabaseName))
 			{
 				yield return asset;
 			}
-			foreach(Object asset in DetailDatabase.FetchDependencies(file, isLog))
+			foreach (PPtr<Object> asset in context.FetchDependencies(DetailDatabase, DetailDatabaseName))
 			{
 				yield return asset;
 			}
-			foreach(Object asset in Heightmap.FetchDependencies(file, isLog))
+			foreach (PPtr<Object> asset in context.FetchDependencies(Heightmap, HeightmapName))
 			{
 				yield return asset;
 			}
-			
-			if (IsReadLightmap(file.Version))
+
+			if (HasLightmap(context.Version))
 			{
-				yield return Lightmap.FetchDependency(file, isLog, ToLogString, "m_Lightmap");
+				yield return context.FetchDependency(Lightmap, LightmapName);
 			}
 		}
 
 		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
 		{
 			YAMLMappingNode node = base.ExportYAMLRoot(container);
-			node.Add("m_SplatDatabase", SplatDatabase.ExportYAML(container));
-			node.Add("m_DetailDatabase", DetailDatabase.ExportYAML(container));
-			node.Add("m_Heightmap", Heightmap.ExportYAML(container));
+			node.Add(SplatDatabaseName, SplatDatabase.ExportYAML(container));
+			node.Add(DetailDatabaseName, DetailDatabase.ExportYAML(container));
+			node.Add(HeightmapName, Heightmap.ExportYAML(container));
+			if (HasLightmap(container.ExportVersion))
+			{
+				node.Add(LightmapName, Lightmap.ExportYAML(container));
+			}
 			return node;
 		}
+
+		public override string ExportPath => Path.Combine(AssetsKeyword, nameof(Terrain), nameof(TerrainData));
+
+		public const string SplatDatabaseName = "m_SplatDatabase";
+		public const string DetailDatabaseName = "m_DetailDatabase";
+		public const string HeightmapName = "m_Heightmap";
+		public const string LightmapName = "m_Lightmap";
 
 		public SplatDatabase SplatDatabase;
 		public DetailDatabase DetailDatabase;

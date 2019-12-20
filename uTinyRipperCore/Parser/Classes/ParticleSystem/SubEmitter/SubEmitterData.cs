@@ -1,7 +1,6 @@
-﻿using System.Collections.Generic;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
-using uTinyRipper.SerializedFiles;
+using System.Collections.Generic;
+using uTinyRipper.YAML;
+using uTinyRipper.Converters;
 
 namespace uTinyRipper.Classes.ParticleSystems
 {
@@ -12,15 +11,17 @@ namespace uTinyRipper.Classes.ParticleSystems
 			Emitter = emitter;
 			Type = type;
 			Properties = ParticleSystemSubEmitterProperties.InheritNothing;
+			EmitProbability = 1.0f;
 		}
 
-		private static int GetSerializedVersion(Version version)
+		public static int ToSerializedVersion(Version version)
 		{
-			if (Config.IsExportTopmostSerializedVersion)
+			// ParticleSystemSubEmitterProperties.InheritDuration added
+			if (version.IsGreaterEqual(2018, 3))
 			{
-				return 2;
+				return 3;
 			}
-
+			// ParticleSystemSubEmitterProperties.InheritLifetime added
 			if (version.IsGreaterEqual(2017, 2))
 			{
 				return 2;
@@ -28,30 +29,49 @@ namespace uTinyRipper.Classes.ParticleSystems
 			return 1;
 		}
 
+		/// <summary>
+		/// 2018.3 and greater
+		/// </summary>
+		public static bool HasEmitProbability(Version version) => version.IsGreaterEqual(2018, 3);
+
 		public void Read(AssetReader reader)
 		{
 			Emitter.Read(reader);
 			Type = (ParticleSystemSubEmitterType)reader.ReadInt32();
 			Properties = (ParticleSystemSubEmitterProperties)reader.ReadInt32();
+			if (HasEmitProbability(reader.Version))
+			{
+				EmitProbability = reader.ReadSingle();
+			}
 		}
 
-		public IEnumerable<Object> FetchDependencies(ISerializedFile file, bool isLog = false)
+		public IEnumerable<PPtr<Object>> FetchDependencies(DependencyContext context)
 		{
-			yield return Emitter.FetchDependency(file, isLog, () => nameof(SubEmitterData), "emitter");
+			yield return context.FetchDependency(Emitter, EmitterName);
 		}
 
 		public YAMLNode ExportYAML(IExportContainer container)
 		{
 			YAMLMappingNode node = new YAMLMappingNode();
-			node.AddSerializedVersion(GetSerializedVersion(container.Version));
-			node.Add("emitter", Emitter.ExportYAML(container));
-			node.Add("type", (int)Type);
-			node.Add("properties", (int)Properties);
+			node.AddSerializedVersion(ToSerializedVersion(container.ExportVersion));
+			node.Add(EmitterName, Emitter.ExportYAML(container));
+			node.Add(TypeName, (int)Type);
+			node.Add(PropertiesName, (int)Properties);
+			if (HasEmitProbability(container.ExportVersion))
+			{
+				node.Add(EmitProbabilityName, EmitProbability);
+			}
 			return node;
 		}
 
-		public ParticleSystemSubEmitterType Type { get; private set; }
-		public ParticleSystemSubEmitterProperties Properties { get; private set; }
+		public ParticleSystemSubEmitterType Type { get; set; }
+		public ParticleSystemSubEmitterProperties Properties { get; set; }
+		public float EmitProbability { get; set; }
+
+		public const string EmitterName = "emitter";
+		public const string TypeName = "type";
+		public const string PropertiesName = "properties";
+		public const string EmitProbabilityName = "emitProbability";
 
 		public PPtr<ParticleSystem> Emitter;
 	}

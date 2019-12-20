@@ -1,8 +1,11 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.IO;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
+using uTinyRipper.Classes.Objects;
+using uTinyRipper.Converters;
 using uTinyRipper.SerializedFiles;
+using uTinyRipper.YAML;
+using uTinyRipper.Game.Assembly;
+using uTinyRipper.Layout;
 
 namespace uTinyRipper.Classes
 {
@@ -18,36 +21,96 @@ namespace uTinyRipper.Classes
 			long position = reader.BaseStream.Position;
 			base.Read(reader);
 
+#if UNIVERSAL
+			MonoBehaviourLayout layout = reader.Layout.MonoBehaviour;
+			if (layout.HasEditorHideFlags)
+			{
+				EditorHideFlags = (HideFlags)reader.ReadUInt32();
+			}
+			if (layout.HasGeneratorAsset)
+			{
+				GeneratorAsset.Read(reader);
+			}
+#endif
+
 			Script.Read(reader);
 			Name = reader.ReadString();
-			
+
+#if UNIVERSAL
+			if (layout.HasEditorClassIdentifier)
+			{
+				EditorClassIdentifier = reader.ReadString();
+			}
+#endif
+
 			MonoScript script = Script.FindAsset(File);
 			if (script != null)
 			{
-				Structure = script.CreateStructure();
-				if(Structure != null)
+				SerializableType behaviourType = script.GetBehaviourType();
+				if (behaviourType == null)
 				{
+					Logger.Log(LogType.Warning, LogCategory.Import, $"Unable to read {ValidName}, because some assemblies are missing");
+				}
+				else
+				{
+					Structure = behaviourType.CreateSerializableStructure();
 					Structure.Read(reader);
 					return;
 				}
 			}
 
 			AssetEntry info = File.GetAssetEntry(PathID);
-			reader.BaseStream.Position = position + info.DataSize;
+			reader.BaseStream.Position = position + info.Size;
 		}
 
-		public override IEnumerable<Object> FetchDependencies(ISerializedFile file, bool isLog = false)
+		public override void Write(AssetWriter writer)
 		{
-			foreach (Object asset in base.FetchDependencies(file, isLog))
+			base.Write(writer);
+
+#if UNIVERSAL
+			MonoBehaviourLayout layout = writer.Layout.MonoBehaviour;
+			if (layout.HasEditorHideFlags)
+			{
+				writer.Write((uint)EditorHideFlags);
+			}
+			if (layout.HasGeneratorAsset)
+			{
+				GeneratorAsset.Write(writer);
+			}
+#endif
+
+			Script.Write(writer);
+			writer.Write(Name);
+
+#if UNIVERSAL
+			if (layout.HasEditorClassIdentifier)
+			{
+				writer.Write(EditorClassIdentifier);
+			}
+#endif
+
+			if (Structure != null)
+			{
+				Structure.Write(writer);
+			}
+		}
+
+		public override IEnumerable<PPtr<Object>> FetchDependencies(DependencyContext context)
+		{
+			foreach (PPtr<Object> asset in base.FetchDependencies(context))
 			{
 				yield return asset;
 			}
 
-			yield return Script.FindAsset(file);
-			
-			if(Structure != null)
+			MonoBehaviourLayout layout = context.Layout.MonoBehaviour;
+#if UNIVERSAL
+			yield return context.FetchDependency(GeneratorAsset, layout.GeneratorAssetName);
+#endif
+			yield return context.FetchDependency(Script, layout.ScriptName);
+
+			if (Structure != null)
 			{
-				foreach (Object asset in Structure.FetchDependencies(file, isLog))
+				foreach (PPtr<Object> asset in context.FetchDependencies(Structure, Structure.Type.Name))
 				{
 					yield return asset;
 				}
@@ -59,58 +122,80 @@ namespace uTinyRipper.Classes
 			return $"{Name}({nameof(MonoBehaviour)})";
 		}
 
-		public bool IsScriptableObject()
-		{
-			if(!GameObject.IsNull)
-			{
-				return false;
-			}
-
-			IScriptStructure structure = Structure;
-			while(structure != null)
-			{
-				if(ScriptType.IsScriptableObject(structure.Namespace, structure.Name))
-				{
-					return true;
-				}
-				structure = structure.Base;
-			}
-			return false;
-		}
-
 		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
 		{
 			YAMLMappingNode node = base.ExportYAMLRoot(container);
-			node.Add("m_EditorHideFlags", false);
-			node.Add("m_Script", Script.ExportYAML(container));
-			node.Add("m_Name", Name);
-			node.Add("m_EditorClassIdentifier", string.Empty);
+			MonoBehaviourLayout layout = container.ExportLayout.MonoBehaviour;
+			node.Add(layout.EditorHideFlagsName, (uint)GetEditorHideFlags(container));
+			if (layout.HasGeneratorAsset)
+			{
+				node.Add(layout.GeneratorAssetName, GetGeneratorAsset(container).ExportYAML(container));
+			}
+			node.Add(layout.ScriptName, Script.ExportYAML(container));
+			node.Add(layout.NameName, Name);
+			node.Add(layout.EditorClassIdentifierName, GetEditorClassIdentifier(container));
 			if (Structure != null)
 			{
 				YAMLMappingNode structureNode = (YAMLMappingNode)Structure.ExportYAML(container);
-				node.Concatenate(structureNode);
+				node.Append(structureNode);
 			}
 			return node;
 		}
 
-		public override bool IsValid
+		private HideFlags GetEditorHideFlags(IExportContainer container)
 		{
-			get
+#if UNIVERSAL
+			if (container.Layout.MonoBehaviour.HasEditorHideFlags)
 			{
-				if(GameObject.IsNull)
-				{
-					return IsScriptableObject();
-				}
-				return true;
+				return EditorHideFlags;
 			}
+#endif
+			return HideFlags.None;
+		}
+		private PPtr<Object> GetGeneratorAsset(IExportContainer container)
+		{
+#if UNIVERSAL
+			if (container.Layout.MonoBehaviour.HasGeneratorAsset)
+			{
+				return GeneratorAsset;
+			}
+#endif
+			return default;
+		}
+		private string GetEditorClassIdentifier(IExportContainer container)
+		{
+#if UNIVERSAL
+			if (container.Layout.MonoBehaviour.HasEditorClassIdentifier)
+			{
+				return EditorClassIdentifier;
+			}
+#endif
+			return string.Empty;
 		}
 
-		public override string ExportName => Path.Combine(AssetsKeyWord, "ScriptableObject");
+		public override string ExportPath => Path.Combine(AssetsKeyword, "ScriptableObject");
 		public override string ExportExtension => AssetExtension;
 
-		public string Name { get; private set; }
-		public ScriptStructure Structure { get; private set; }
+		public string ValidName => Name.Length == 0 ? nameof(MonoBehaviour) : Name;
+		/// <summary>
+		/// Whether this MonoBeh belongs to scene/prefab hierarchy or not
+		/// </summary>
+		// TODO: find out why GameObject may has value like PPtr(0, 894) but such game object doesn't exists
+		public bool IsSceneObject => !GameObject.IsNull;
+		public bool IsScriptableObject => Name.Length > 0;
 
+#if UNIVERSAL
+		public HideFlags EditorHideFlags { get; set; }
+#endif
+		public string Name { get; set; }
+		public SerializableStructure Structure { get; set; }
+#if UNIVERSAL
+		public string EditorClassIdentifier { get; set; }
+#endif
+
+#if UNIVERSAL
+		public PPtr<Object> GeneratorAsset;
+#endif
 		public PPtr<MonoScript> Script;
 	}
 }

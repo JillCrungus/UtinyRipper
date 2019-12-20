@@ -1,13 +1,16 @@
-﻿using uTinyRipper.AssetExporters;
-using uTinyRipper.Classes.EditorSettingss;
-using uTinyRipper.Exporter.YAML;
+﻿using uTinyRipper.Classes.EditorSettingss;
+using uTinyRipper.Converters;
 using uTinyRipper.SerializedFiles;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes
 {
+	/// <summary>
+	/// First introduced in 2.6.0
+	/// </summary>
 	public sealed class EditorSettings : Object
 	{
-		public EditorSettings(AssetInfo assetInfo):
+		public EditorSettings(AssetInfo assetInfo) :
 			base(assetInfo)
 		{
 		}
@@ -26,7 +29,9 @@ namespace uTinyRipper.Classes
 			ProjectGenerationRootNamespace = string.Empty;
 			UserGeneratedProjectSuffix = string.Empty;
 			CollabEditorSettings = new CollabEditorSettings(true);
+			EnableTextureStreamingInEditMode = true;
 			EnableTextureStreamingInPlayMode = true;
+			AsyncShaderCompilation = true;
 		}
 
 		public static EditorSettings CreateVirtualInstance(VirtualSerializedFile virtualFile)
@@ -34,81 +39,15 @@ namespace uTinyRipper.Classes
 			return virtualFile.CreateAsset((assetInfo) => new EditorSettings(assetInfo, true));
 		}
 
-		/// <summary>
-		/// 4.0.0 and greater
-		/// </summary>
-		private static bool IsReadExternalVersionControl(Version version)
+		public static int ToSerializedVersion(Version version)
 		{
-			return version.IsGreaterEqual(4);
-		}
-		/// <summary>
-		/// 5.4.x and less
-		/// </summary>
-		private static bool IsReadWebSecurityEmulationEnabled(Version version)
-		{
-			return version.IsLessEqual(5, 4);
-		}
-		/// <summary>
-		/// 2017.3 and greater
-		/// </summary>
-		private static bool IsReadLineEndingsForNewScripts(Version version)
-		{
-			return version.IsGreaterEqual(2017, 3);
-		}
-		/// <summary>
-		/// 4.3.0 and greater
-		/// </summary>
-		private static bool IsReadDefaultBehaviorMode(Version version)
-		{
-			return version.IsGreaterEqual(4, 3);
-		}
-		/// <summary>
-		/// 5.1.0 and greater
-		/// </summary>
-		private static bool IsReadSpritePackerPaddingPower(Version version)
-		{
-			return version.IsGreaterEqual(5, 1);
-		}
-		/// <summary>
-		/// 2017.2 and greater
-		/// </summary>
-		private static bool IsReadEtcTextureCompressorBehavior(Version version)
-		{
-			return version.IsGreaterEqual(2017, 2);
-		}
-		/// <summary>
-		/// 5.1.0 and greater
-		/// </summary>
-		private static bool IsReadProjectGenerationIncludedExtensions(Version version)
-		{
-			return version.IsGreaterEqual(5, 1);
-		}
-		/// <summary>
-		/// 5.5.0 and greater
-		/// </summary>
-		private static bool IsReadUserGeneratedProjectSuffix(Version version)
-		{
-			return version.IsGreaterEqual(5, 5);
-		}
-		/// <summary>
-		/// 2017.1 and greater
-		/// </summary>
-		private static bool IsReadCollabEditorSettings(Version version)
-		{
-			return version.IsGreaterEqual(2017, 1);
-		}
-		/// <summary>
-		/// 2018.2 and greater
-		/// </summary>
-		private static bool IsReadEnableTextureStreamingInPlayMode(Version version)
-		{
-			return version.IsGreaterEqual(2018, 2);
-		}
-		
-		private static int GetSerializedVersion(Version version)
-		{
+			// 'asmref' has been added to default ProjectGenerationIncludedExtensions
+			if (version.IsGreaterEqual(2019, 2))
+			{
+				return 8;
+			}
 			// LineEndingsForNewScripts default value changed (Unix to OSNative)
-			if (Config.IsExportTopmostSerializedVersion || version.IsGreaterEqual(2017, 3))
+			if (version.IsGreaterEqual(2017, 3))
 			{
 				return 7;
 			}
@@ -134,7 +73,7 @@ namespace uTinyRipper.Classes
 			{
 				return 3;
 			}
-			// ExternalVersionControlSupport enum converted to string
+			// ExternalVersionControlSupport enum has converted to string 
 			if (version.IsGreaterEqual(4))
 			{
 				return 2;
@@ -142,14 +81,88 @@ namespace uTinyRipper.Classes
 			return 1;
 		}
 
+		/// <summary>
+		/// Less than 4.0.0
+		/// </summary>
+		public static bool HasExternalVersionControl(Version version) => version.IsLess(4);
+		/// <summary>
+		/// 3.5.0 and greater
+		/// </summary>
+		public static bool HasSerializationMode(Version version) => version.IsGreaterEqual(3, 5);
+		/// <summary>
+		/// 5.4.x and less
+		/// </summary>
+		public static bool HasWebSecurityEmulationEnabled(Version version) => version.IsLessEqual(5, 4);
+		/// <summary>
+		/// 2017.3 and greater
+		/// </summary>
+		public static bool HasLineEndingsForNewScripts(Version version) => version.IsGreaterEqual(2017, 3);
+		/// <summary>
+		/// 4.3.0 and greater
+		/// </summary>
+		public static bool HasDefaultBehaviorMode(Version version) => version.IsGreaterEqual(4, 3);
+		/// <summary>
+		/// 2018.3 and greater
+		/// </summary>
+		public static bool HasPrefabRegularEnvironment(Version version) => version.IsGreaterEqual(2018, 3);
+		/// <summary>
+		/// 4.3.0 and greater
+		/// </summary>
+		public static bool HasSpritePackerMode(Version version) => version.IsGreaterEqual(4, 3);
+		/// <summary>
+		/// 5.1.0 and greater
+		/// </summary>
+		public static bool HasSpritePackerPaddingPower(Version version) => version.IsGreaterEqual(5, 1);
+		/// <summary>
+		/// 2017.2 and greater
+		/// </summary>
+		public static bool HasEtcTextureCompressorBehavior(Version version) => version.IsGreaterEqual(2017, 2);
+		/// <summary>
+		/// 5.1.0 and greater
+		/// </summary>
+		public static bool HasProjectGenerationIncludedExtensions(Version version) => version.IsGreaterEqual(5, 1);
+		/// <summary>
+		/// 5.5.0 to 2018.3 exclusive
+		/// </summary>
+		public static bool HasUserGeneratedProjectSuffix(Version version) => version.IsLess(2018, 3) && version.IsGreaterEqual(5, 5);
+		/// <summary>
+		/// 2017.1 and greater
+		/// </summary>
+		public static bool HasCollabEditorSettings(Version version) => version.IsGreaterEqual(2017, 1);
+		/// <summary>
+		/// 2019.1 and greater
+		/// </summary>
+		public static bool HasEnableTextureStreamingInEditMode(Version version) => version.IsGreaterEqual(2019);
+		/// <summary>
+		/// 2018.2 and greater
+		/// </summary>
+		public static bool HasEnableTextureStreamingInPlayMode(Version version) => version.IsGreaterEqual(2018, 2);
+		/// <summary>
+		/// 2019.1.0b6 and greater
+		/// </summary>
+		public static bool HasAsyncShaderCompilation(Version version) => version.IsGreaterEqual(2019, 1, 0, VersionType.Beta, 6);
+		/// <summary>
+		/// 2019.2 and greater
+		/// </summary>
+		public static bool HasShowLightmapResolutionOverlay(Version version) => version.IsGreaterEqual(2019, 2);
+
+		/// <summary>
+		/// 2018.2 and greater
+		/// </summary>
+		private static bool IsAlign1(Version version) => version.IsGreaterEqual(2018, 2);
+		/// <summary>
+		/// 2019.2 and greater
+		/// </summary>
+		private static bool IsAlign2(Version version) => version.IsGreaterEqual(2019, 2);
+
 		public override void Read(AssetReader reader)
 		{
 			base.Read(reader);
 
-			if(IsReadExternalVersionControl(reader.Version))
+			if (HasExternalVersionControl(reader.Version))
 			{
 				ExternalVersionControl support = (ExternalVersionControl)reader.ReadInt32();
-				switch(support)
+				switch (support)
 				{
 					case ExternalVersionControl.AutoDetect:
 						ExternalVersionControlSupport = "Auto detect";
@@ -185,137 +198,232 @@ namespace uTinyRipper.Classes
 						break;
 				}
 			}
-			SerializationMode = (SerializationMode)reader.ReadInt32();
-			if(IsReadWebSecurityEmulationEnabled(reader.Version))
+			if (HasSerializationMode(reader.Version))
+			{
+				SerializationMode = (SerializationMode)reader.ReadInt32();
+			}
+			if (HasWebSecurityEmulationEnabled(reader.Version))
 			{
 				WebSecurityEmulationEnabled = reader.ReadInt32();
 				WebSecurityEmulationHostUrl = reader.ReadString();
 			}
-			reader.AlignStream(AlignType.Align4);
+			reader.AlignStream();
 
-			if (IsReadLineEndingsForNewScripts(reader.Version))
+			if (HasLineEndingsForNewScripts(reader.Version))
 			{
 				LineEndingsForNewScripts = (LineEndingsMode)reader.ReadInt32();
 			}
-			if (IsReadDefaultBehaviorMode(reader.Version))
+			if (HasDefaultBehaviorMode(reader.Version))
 			{
 				DefaultBehaviorMode = (EditorBehaviorMode)reader.ReadInt32();
+			}
+			if (HasPrefabRegularEnvironment(reader.Version))
+			{
+				PrefabRegularEnvironment.Read(reader);
+				PrefabUIEnvironment.Read(reader);
+			}
+			if (HasSpritePackerMode(reader.Version))
+			{
 				SpritePackerMode = (SpritePackerMode)reader.ReadInt32();
 			}
-			if (IsReadSpritePackerPaddingPower(reader.Version))
+
+			if (HasSpritePackerPaddingPower(reader.Version))
 			{
 				SpritePackerPaddingPower = reader.ReadInt32();
 			}
-			if (IsReadEtcTextureCompressorBehavior(reader.Version))
+			if (HasEtcTextureCompressorBehavior(reader.Version))
 			{
 				EtcTextureCompressorBehavior = reader.ReadInt32();
 				EtcTextureFastCompressor = reader.ReadInt32();
 				EtcTextureNormalCompressor = reader.ReadInt32();
 				EtcTextureBestCompressor = reader.ReadInt32();
 			}
-			if (IsReadProjectGenerationIncludedExtensions(reader.Version))
+			if (HasProjectGenerationIncludedExtensions(reader.Version))
 			{
 				ProjectGenerationIncludedExtensions = reader.ReadString();
 				ProjectGenerationRootNamespace = reader.ReadString();
 			}
-			if (IsReadUserGeneratedProjectSuffix(reader.Version))
+			if (HasUserGeneratedProjectSuffix(reader.Version))
 			{
 				UserGeneratedProjectSuffix = reader.ReadString();
 			}
-			if (IsReadCollabEditorSettings(reader.Version))
+			if (HasCollabEditorSettings(reader.Version))
 			{
 				CollabEditorSettings.Read(reader);
 			}
-			if (IsReadEnableTextureStreamingInPlayMode(reader.Version))
+			if (HasEnableTextureStreamingInEditMode(reader.Version))
+			{
+				EnableTextureStreamingInEditMode = reader.ReadBoolean();
+			}
+			if (HasEnableTextureStreamingInPlayMode(reader.Version))
 			{
 				EnableTextureStreamingInPlayMode = reader.ReadBoolean();
+			}
+			if (HasAsyncShaderCompilation(reader.Version))
+			{
+				AsyncShaderCompilation = reader.ReadBoolean();
+			}
+			if (IsAlign1(reader.Version))
+			{
+				reader.AlignStream();
+			}
+
+			if (HasShowLightmapResolutionOverlay(reader.Version))
+			{
+				ShowLightmapResolutionOverlay = reader.ReadBoolean();
+			}
+			if (IsAlign2(reader.Version))
+			{
+				reader.AlignStream();
 			}
 		}
 
 		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
 		{
 			YAMLMappingNode node = base.ExportYAMLRoot(container);
-			node.AddSerializedVersion(GetSerializedVersion(container.Version));
-			node.Add("m_ExternalVersionControlSupport", ExternalVersionControlSupport);
-			node.Add("m_SerializationMode", (int)SerializationMode);
-			node.Add("m_LineEndingsForNewScripts", (int)LineEndingsForNewScripts);
-			node.Add("m_DefaultBehaviorMode", (int)DefaultBehaviorMode);
-			node.Add("m_SpritePackerMode", (int)SpritePackerMode);
-			node.Add("m_SpritePackerPaddingPower", GetSpritePackerPaddingPower(container.Version));
-			node.Add("m_EtcTextureCompressorBehavior", GetEtcTextureCompressorBehavior(container.Version));
-			node.Add("m_EtcTextureFastCompressor", GetEtcTextureFastCompressor(container.Version));
-			node.Add("m_EtcTextureNormalCompressor", GetEtcTextureNormalCompressor(container.Version));
-			node.Add("m_EtcTextureBestCompressor", GetEtcTextureBestCompressor(container.Version));
-			node.Add("m_ProjectGenerationIncludedExtensions", GetProjectGenerationIncludedExtensions(container.Version));
-			node.Add("m_ProjectGenerationRootNamespace", GetProjectGenerationRootNamespace(container.Version));
-			node.Add("m_UserGeneratedProjectSuffix", GetUserGeneratedProjectSuffix(container.Version));
-			node.Add("m_CollabEditorSettings", GetCollabEditorSettings(container.Version).ExportYAML(container));
-#warning TODO: 2018
-			//node.Add("m_EnableTextureStreamingInPlayMode", GetEnableTextureStreamingInPlayMode(container.Version));
+			node.AddSerializedVersion(ToSerializedVersion(container.ExportVersion));
+			node.Add(ExternalVersionControlSupportName, ExternalVersionControlSupport);
+			node.Add(SerializationModeName, (int)SerializationMode);
+			node.Add(LineEndingsForNewScriptsName, (int)LineEndingsForNewScripts);
+			node.Add(DefaultBehaviorModeName, (int)DefaultBehaviorMode);
+			if (HasPrefabRegularEnvironment(container.ExportVersion))
+			{
+				node.Add(PrefabRegularEnvironmentName, PrefabRegularEnvironment.ExportYAML(container));
+				node.Add(PrefabUIEnvironmentName, PrefabUIEnvironment.ExportYAML(container));
+			}
+			node.Add(SpritePackerModeName, (int)SpritePackerMode);
+			node.Add(SpritePackerPaddingPowerName, GetSpritePackerPaddingPower(container.Version));
+			node.Add(EtcTextureCompressorBehaviorName, GetEtcTextureCompressorBehavior(container.Version));
+			node.Add(EtcTextureFastCompressorName, GetEtcTextureFastCompressor(container.Version));
+			node.Add(EtcTextureNormalCompressorName, GetEtcTextureNormalCompressor(container.Version));
+			node.Add(EtcTextureBestCompressorName, GetEtcTextureBestCompressor(container.Version));
+			node.Add(ProjectGenerationIncludedExtensionsName, GetProjectGenerationIncludedExtensions(container.Version));
+			node.Add(ProjectGenerationRootNamespaceName, GetProjectGenerationRootNamespace(container.Version));
+			if (HasUserGeneratedProjectSuffix(container.ExportVersion))
+			{
+				node.Add(UserGeneratedProjectSuffixName, GetUserGeneratedProjectSuffix(container.Version));
+			}
+			node.Add(CollabEditorSettingsName, GetCollabEditorSettings(container.Version).ExportYAML(container));
+			if (HasEnableTextureStreamingInEditMode(container.ExportVersion))
+			{
+				node.Add(EnableTextureStreamingInEditModeName, GetEnableTextureStreamingInEditMode(container.Version));
+			}
+			if (HasEnableTextureStreamingInPlayMode(container.ExportVersion))
+			{
+				node.Add(EnableTextureStreamingInPlayModeName, GetEnableTextureStreamingInPlayMode(container.Version));
+			}
+			if (HasAsyncShaderCompilation(container.ExportVersion))
+			{
+				node.Add(AsyncShaderCompilationName, GetAsyncShaderCompilation(container.Version));
+			}
+			if (HasShowLightmapResolutionOverlay(container.ExportVersion))
+			{
+				node.Add(ShowLightmapResolutionOverlayName, GetShowLightmapResolutionOverlay(container.Version));
+			}
 			return node;
 		}
 
 		private int GetSpritePackerPaddingPower(Version version)
 		{
-			return IsReadSpritePackerPaddingPower(version) ? SpritePackerPaddingPower : 1;
+			return HasSpritePackerPaddingPower(version) ? SpritePackerPaddingPower : 1;
 		}
 		private int GetEtcTextureCompressorBehavior(Version version)
 		{
-			return IsReadEtcTextureCompressorBehavior(version) ? EtcTextureCompressorBehavior : 1;
+			return HasEtcTextureCompressorBehavior(version) ? EtcTextureCompressorBehavior : 1;
 		}
 		private int GetEtcTextureFastCompressor(Version version)
 		{
-			return IsReadEtcTextureCompressorBehavior(version) ? EtcTextureFastCompressor : 1;
+			return HasEtcTextureCompressorBehavior(version) ? EtcTextureFastCompressor : 1;
 		}
 		private int GetEtcTextureNormalCompressor(Version version)
 		{
-			return IsReadEtcTextureCompressorBehavior(version) ? EtcTextureNormalCompressor : 2;
+			return HasEtcTextureCompressorBehavior(version) ? EtcTextureNormalCompressor : 2;
 		}
 		private int GetEtcTextureBestCompressor(Version version)
 		{
-			return IsReadEtcTextureCompressorBehavior(version) ? EtcTextureBestCompressor : 4;
+			return HasEtcTextureCompressorBehavior(version) ? EtcTextureBestCompressor : 4;
 		}
 		private string GetProjectGenerationIncludedExtensions(Version version)
 		{
-			return IsReadProjectGenerationIncludedExtensions(version) ? ProjectGenerationIncludedExtensions : DefaultExtensions;
+			string exts = HasProjectGenerationIncludedExtensions(version) ? ProjectGenerationIncludedExtensions : DefaultExtensions;
+			return ToSerializedVersion(version) < 8 ? exts : $"{exts};{AsmrefExtension}";
 		}
 		private string GetProjectGenerationRootNamespace(Version version)
 		{
-			return IsReadProjectGenerationIncludedExtensions(version) ? ProjectGenerationRootNamespace : string.Empty;
+			return HasProjectGenerationIncludedExtensions(version) ? ProjectGenerationRootNamespace : string.Empty;
 		}
 		private string GetUserGeneratedProjectSuffix(Version version)
 		{
-			return IsReadUserGeneratedProjectSuffix(version) ? UserGeneratedProjectSuffix : string.Empty;
+			return HasUserGeneratedProjectSuffix(version) ? UserGeneratedProjectSuffix : string.Empty;
 		}
 		private CollabEditorSettings GetCollabEditorSettings(Version version)
 		{
-			return IsReadCollabEditorSettings(version) ? CollabEditorSettings : new CollabEditorSettings(true);
+			return HasCollabEditorSettings(version) ? CollabEditorSettings : new CollabEditorSettings(true);
+		}
+		private bool GetEnableTextureStreamingInEditMode(Version version)
+		{
+			return HasEnableTextureStreamingInEditMode(version) ? EnableTextureStreamingInEditMode : true;
 		}
 		private bool GetEnableTextureStreamingInPlayMode(Version version)
 		{
-			return IsReadEnableTextureStreamingInPlayMode(version) ? EnableTextureStreamingInPlayMode : true;
+			return HasEnableTextureStreamingInPlayMode(version) ? EnableTextureStreamingInPlayMode : true;
+		}
+		private bool GetAsyncShaderCompilation(Version version)
+		{
+			return HasAsyncShaderCompilation(version) ? AsyncShaderCompilation : true;
+		}
+		private bool GetShowLightmapResolutionOverlay(Version version)
+		{
+			return HasShowLightmapResolutionOverlay(version) ? ShowLightmapResolutionOverlay : true;
 		}
 
-		public string ExternalVersionControlSupport { get; private set; }
-		public SerializationMode SerializationMode { get; private set; }
-		public int WebSecurityEmulationEnabled { get; private set; }
-		public string WebSecurityEmulationHostUrl { get; private set; }
-		public LineEndingsMode LineEndingsForNewScripts { get; private set; }
-		public EditorBehaviorMode DefaultBehaviorMode { get; private set; }
-		public SpritePackerMode SpritePackerMode { get; private set; }
-		public int SpritePackerPaddingPower { get; private set; }
-		public int EtcTextureCompressorBehavior { get; private set; }
-		public int EtcTextureFastCompressor { get; private set; }
-		public int EtcTextureNormalCompressor { get; private set; }
-		public int EtcTextureBestCompressor { get; private set; }
-		public string ProjectGenerationIncludedExtensions { get; private set; }
-		public string ProjectGenerationRootNamespace { get; private set; }
-		public string UserGeneratedProjectSuffix { get; private set; }
-		public bool EnableTextureStreamingInPlayMode { get; private set; }
+		public string ExternalVersionControlSupport { get; set; }
+		public SerializationMode SerializationMode { get; set; }
+		public int WebSecurityEmulationEnabled { get; set; }
+		public string WebSecurityEmulationHostUrl { get; set; }
+		public LineEndingsMode LineEndingsForNewScripts { get; set; }
+		public EditorBehaviorMode DefaultBehaviorMode { get; set; }
+		public SpritePackerMode SpritePackerMode { get; set; }
+		public int SpritePackerPaddingPower { get; set; }
+		public int EtcTextureCompressorBehavior { get; set; }
+		public int EtcTextureFastCompressor { get; set; }
+		public int EtcTextureNormalCompressor { get; set; }
+		public int EtcTextureBestCompressor { get; set; }
+		public string ProjectGenerationIncludedExtensions { get; set; }
+		public string ProjectGenerationRootNamespace { get; set; }
+		public string UserGeneratedProjectSuffix { get; set; }
+		public bool EnableTextureStreamingInEditMode { get; set; }
+		public bool EnableTextureStreamingInPlayMode { get; set; }
+		public bool AsyncShaderCompilation { get; set; }
+		public bool ShowLightmapResolutionOverlay { get; set; }
 
+		public const string ExternalVersionControlSupportName = "m_ExternalVersionControlSupport";
+		public const string SerializationModeName = "m_SerializationMode";
+		public const string LineEndingsForNewScriptsName = "m_LineEndingsForNewScripts";
+		public const string DefaultBehaviorModeName = "m_DefaultBehaviorMode";
+		public const string PrefabRegularEnvironmentName = "m_PrefabRegularEnvironment";
+		public const string PrefabUIEnvironmentName = "m_PrefabUIEnvironment";
+		public const string SpritePackerModeName = "m_SpritePackerMode";
+		public const string SpritePackerPaddingPowerName = "m_SpritePackerPaddingPower";
+		public const string EtcTextureCompressorBehaviorName = "m_EtcTextureCompressorBehavior";
+		public const string EtcTextureFastCompressorName = "m_EtcTextureFastCompressor";
+		public const string EtcTextureNormalCompressorName = "m_EtcTextureNormalCompressor";
+		public const string EtcTextureBestCompressorName = "m_EtcTextureBestCompressor";
+		public const string ProjectGenerationIncludedExtensionsName = "m_ProjectGenerationIncludedExtensions";
+		public const string ProjectGenerationRootNamespaceName = "m_ProjectGenerationRootNamespace";
+		public const string UserGeneratedProjectSuffixName = "m_UserGeneratedProjectSuffix";
+		public const string CollabEditorSettingsName = "m_CollabEditorSettings";
+		public const string EnableTextureStreamingInEditModeName = "m_EnableTextureStreamingInEditMode";
+		public const string EnableTextureStreamingInPlayModeName = "m_EnableTextureStreamingInPlayMode";
+		public const string AsyncShaderCompilationName = "m_AsyncShaderCompilation";
+		public const string ShowLightmapResolutionOverlayName = "m_ShowLightmapResolutionOverlay";
+
+		public PPtr<SceneAsset> PrefabRegularEnvironment;
+		public PPtr<SceneAsset> PrefabUIEnvironment;
 		public CollabEditorSettings CollabEditorSettings;
 
 		private const string DefaultExtensions = "txt;xml;fnt;cd;asmdef;rsp";
+		private const string AsmrefExtension = "asmref";
 		private const string HiddenMeta = "Hidden Meta Files";
 		private const string VisibleMeta = "Visible Meta Files";
 	}

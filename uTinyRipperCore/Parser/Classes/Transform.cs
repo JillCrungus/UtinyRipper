@@ -1,64 +1,42 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
-using uTinyRipper.SerializedFiles;
+using uTinyRipper.YAML;
+using uTinyRipper.Converters;
+using uTinyRipper.Layout;
 
 namespace uTinyRipper.Classes
 {
 	public class Transform : Component
 	{
+		public Transform(AssetLayout layout):
+			base(layout)
+		{
+			Children = Array.Empty<PPtr<Transform>>();
+		}
+
 		public Transform(AssetInfo assetInfo) :
 			base(assetInfo)
 		{
 		}
 
-		public override void Read(AssetReader reader)
-		{
-			base.Read(reader);
-			
-			LocalRotation.Read(reader);
-			LocalPosition.Read(reader);
-			LocalScale.Read(reader);
-			m_children = reader.ReadArray<PPtr<Transform>>();
-			Father.Read(reader);
-		}
-
-		public override IEnumerable<Object> FetchDependencies(ISerializedFile file, bool isLog = false)
-		{
-			foreach(Object asset in base.FetchDependencies(file, isLog))
-			{
-				yield return asset;
-			}
-
-			foreach (PPtr<Transform> ptr in Children)
-			{
-				yield return ptr.GetAsset(file);
-			}
-			if (!Father.IsNull)
-			{
-				yield return Father.GetAsset(file);
-			}
-		}
-
 		public string GetRootPath()
 		{
 			string pre = string.Empty;
-			if(!Father.IsNull)
+			if (!Father.IsNull)
 			{
-				pre = Father.GetAsset(File).GetRootPath() + "/";
+				pre = Father.GetAsset(File).GetRootPath() + PathSeparator;
 			}
 			return pre + GameObject.GetAsset(File).Name;
 		}
 
 		public int GetSiblingIndex()
 		{
-			if(Father.IsNull)
+			if (Father.IsNull)
 			{
 				return 0;
 			}
 			Transform father = Father.GetAsset(File);
-			for(int i = 0; i < father.Children.Count; i++)
+			for (int i = 0; i < father.Children.Length; i++)
 			{
 				PPtr<Transform> child = father.Children[i];
 				if (child.PathID == PathID)
@@ -71,23 +49,88 @@ namespace uTinyRipper.Classes
 
 		public Transform FindChild(string path)
 		{
-			if (path == string.Empty)
+			if (path.Length == 0)
 			{
 				return this;
 			}
 			return FindChild(path, 0);
 		}
 
+		public override Object Convert(IExportContainer container)
+		{
+			return TransformConverter.Convert(container, this);
+		}
+
+		public override void Read(AssetReader reader)
+		{
+			base.Read(reader);
+			
+			LocalRotation.Read(reader);
+			LocalPosition.Read(reader);
+			LocalScale.Read(reader);
+			Children = reader.ReadAssetArray<PPtr<Transform>>();
+			Father.Read(reader);
+#if UNIVERSAL
+			TransformLayout layout = reader.Layout.Transform;
+			if (layout.HasRootOrder)
+			{
+				RootOrder = reader.ReadInt32();
+			}
+			if (layout.HasLocalEulerAnglesHint)
+			{
+				LocalEulerAnglesHint.Read(reader);
+			}
+#endif
+		}
+
+		public override void Write(AssetWriter writer)
+		{
+			base.Write(writer);
+
+			LocalRotation.Write(writer);
+			LocalPosition.Write(writer);
+			LocalScale.Write(writer);
+			Children.Write(writer);
+			Father.Write(writer);
+#if UNIVERSAL
+			TransformLayout layout = writer.Layout.Transform;
+			if (layout.HasRootOrder)
+			{
+				writer.Write(RootOrder);
+			}
+			if (layout.HasLocalEulerAnglesHint)
+			{
+				LocalEulerAnglesHint.Write(writer);
+			}
+#endif
+		}
+
+		public override IEnumerable<PPtr<Object>> FetchDependencies(DependencyContext context)
+		{
+			foreach (PPtr<Object> asset in base.FetchDependencies(context))
+			{
+				yield return asset;
+			}
+
+			TransformLayout layout = context.Layout.Transform;
+			foreach (PPtr<Object> asset in context.FetchDependencies(Children, layout.ChildrenName))
+			{
+				yield return asset;
+			}
+			yield return context.FetchDependency(Father, layout.FatherName);
+		}
+
 		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
 		{
 			YAMLMappingNode node = base.ExportYAMLRoot(container);
-			node.Add(LocalRotationName, LocalRotation.ExportYAML(container));
-			node.Add(LocalPositionName, LocalPosition.ExportYAML(container));
-			node.Add(LocalScaleName, LocalScale.ExportYAML(container));
-			node.Add(ChildrenName, Children.ExportYAML(container));
-			node.Add(FatherName, Father.ExportYAML(container));
-			node.Add(RootOrderName, GetSiblingIndex());
-			node.Add(LocalEulerAnglesHintName, LocalRotation.ToEuler().ExportYAML(container));
+			TransformLayout layout = container.Layout.Transform;
+			node.Add(layout.LocalRotationName, LocalRotation.ExportYAML(container));
+			node.Add(layout.LocalPositionName, LocalPosition.ExportYAML(container));
+			node.Add(layout.LocalScaleName, LocalScale.ExportYAML(container));
+			node.Add(layout.ChildrenName, Children.ExportYAML(container));
+			node.Add(layout.FatherName, Father.ExportYAML(container));
+			node.Add(layout.RootOrderName, RootOrder);
+			node.Add(layout.LocalEulerAnglesHintName, LocalEulerAnglesHint.ExportYAML(container));
 			return node;
 		}
 
@@ -97,7 +140,7 @@ namespace uTinyRipper.Classes
 			string childName = separatorIndex == -1 ?
 				path.Substring(startIndex, path.Length - startIndex) :
 				path.Substring(startIndex, separatorIndex - startIndex);
-			foreach (PPtr<Transform> childPtr in m_children)
+			foreach (PPtr<Transform> childPtr in Children)
 			{
 				Transform child = childPtr.GetAsset(File);
 				GameObject childGO = child.GameObject.GetAsset(File);
@@ -109,15 +152,13 @@ namespace uTinyRipper.Classes
 			return null;
 		}
 
-		public const string LocalRotationName = "m_LocalRotation";
-		public const string LocalPositionName = "m_LocalPosition";
-		public const string LocalScaleName = "m_LocalScale";
-		public const string ChildrenName = "m_Children";
-		public const string FatherName = "m_Father";
-		public const string RootOrderName = "m_RootOrder";
-		public const string LocalEulerAnglesHintName = "m_LocalEulerAnglesHint";
-
-		public IReadOnlyList<PPtr<Transform>> Children => m_children;
+		public PPtr<Transform>[] Children { get; set; }
+#if UNIVERSAL
+		public int RootOrder { get; set; }
+#else
+		private int RootOrder => GetSiblingIndex();
+		private Vector3f LocalEulerAnglesHint => LocalRotation.ToEuler();
+#endif
 
 		public const char PathSeparator = '/';
 
@@ -125,7 +166,8 @@ namespace uTinyRipper.Classes
 		public Vector3f LocalPosition;
 		public Vector3f LocalScale;
 		public PPtr<Transform> Father;
-
-		private PPtr<Transform>[] m_children;
+#if UNIVERSAL
+		public Vector3f LocalEulerAnglesHint;
+#endif
 	}
 }

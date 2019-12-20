@@ -1,19 +1,23 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows;
-using System.Windows.Automation.Peers;
-using System.Windows.Automation.Provider;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Navigation;
 using uTinyRipper;
-using uTinyRipper.AssetExporters;
 using uTinyRipper.Classes;
-using uTinyRipper.SerializedFiles;
+using uTinyRipper.Converters;
 using uTinyRipperGUI.Exporters;
+
+#if VIRTUAL
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
+#elif !DEBUG
+using uTinyRipper.SerializedFiles;
+#endif
 
 using Object = uTinyRipper.Classes.Object;
 using Version = uTinyRipper.Version;
@@ -36,7 +40,9 @@ namespace uTinyRipperGUI
 
 			Logger.Instance = new OutputLogger(OutputTextBox);
 
-			m_initialText = IntroText.Text;
+			m_initialIntroText = IntroText.Text;
+			m_initialStatusText = StatusText.Text;
+			m_outputContentStart = new TextRange(OutputTextBox.Document.Blocks.FirstBlock.ElementEnd, OutputTextBox.Document.Blocks.FirstBlock.ElementEnd);
 
 			string[] args = Environment.GetCommandLineArgs();
 			string[] files = args.Skip(1).ToArray();
@@ -102,7 +108,8 @@ namespace uTinyRipperGUI
 
 		private void OnResetButtonClicked(object sender, RoutedEventArgs e)
 		{
-			IntroText.Text = m_initialText;
+			IntroText.Text = m_initialIntroText;
+			StatusText.Text = m_initialStatusText;
 			MainGrid.AllowDrop = true;
 			PostExportButton.Visibility = Visibility.Hidden;
 			ResetButton.Visibility = Visibility.Hidden;
@@ -113,7 +120,11 @@ namespace uTinyRipperGUI
 
 		private void OnOutputTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
 		{
-			OutputTextBox.ScrollToEnd();
+			if (OutputTextBox.VerticalOffset == 0.0f && OutputTextBox.ViewportHeight >= OutputTextBox.ExtentHeight ||
+				OutputTextBox.VerticalOffset + OutputTextBox.ViewportHeight == OutputTextBox.ExtentHeight)
+			{
+				OutputTextBox.ScrollToEnd();
+			}
 		}
 
 		private void OnHyperlinkClicked(object sender, RequestNavigateEventArgs e)
@@ -128,11 +139,16 @@ namespace uTinyRipperGUI
 			}
 		}
 
+		private void OnClearOutputTextClicked(object sender, RoutedEventArgs e)
+		{
+			ClearConsole();
+		}
+
 		// =====================================================
 		// Visualization
 		// =====================================================
 
-		private void AddHyperlinkText(string message, string linkName, string linkURL)
+		private void AddHyperlinkToConsole(string message, string linkName, string linkURL)
 		{
 			TextRange rangeOfText = new TextRange(OutputTextBox.Document.ContentEnd, OutputTextBox.Document.ContentEnd);
 			rangeOfText.Text = message;
@@ -152,6 +168,12 @@ namespace uTinyRipperGUI
 			rangeOfText.Text = "\r";
 		}
 
+		private void ClearConsole()
+		{
+			TextRange range = new TextRange(m_outputContentStart.Start, OutputTextBox.Document.ContentEnd);
+			range.Text = string.Empty;
+		}
+
 		// =====================================================
 		// Methods
 		// =====================================================
@@ -165,7 +187,7 @@ namespace uTinyRipperGUI
 
 			foreach (string file in files)
 			{
-				if (FileMultiStream.Exists(file))
+				if (MultiFileStream.Exists(file))
 				{
 					continue;
 				}
@@ -173,7 +195,7 @@ namespace uTinyRipperGUI
 				{
 					continue;
 				}
-				Logger.Instance.Log(LogType.Warning, LogCategory.General, FileMultiStream.IsMultiFile(file) ?
+				Logger.Log(LogType.Warning, LogCategory.General, MultiFileStream.IsMultiFile(file) ?
 					$"File '{file}' doesn't has all parts for combining" :
 					$"Neither file nor directory with path '{file}' exists");
 				return false;
@@ -195,17 +217,19 @@ namespace uTinyRipperGUI
 			try
 #endif
 			{
+				OnImportStarted();
 				GameStructure = GameStructure.Load(files);
 				Validate();
+				OnImportFinished();
 			}
 #if !DEBUG
 			catch(SerializedFileException ex)
 			{
 				Dispatcher.Invoke(() =>
 				{
-					Logger.Instance.Log(LogType.Error, LogCategory.Import, ex.ToString());
-					AddHyperlinkText("Go to: ", "Create issue", IssuePage);
-					AddHyperlinkText("Attach file: ", ex.FileName, ex.FilePath);
+					Logger.Log(LogType.Error, LogCategory.Import, ex.ToString());
+					AddHyperlinkToConsole("Go to: ", "Create issue", IssuePage);
+					AddHyperlinkToConsole("Attach file: ", ex.FileName, ex.FilePath);
 					MessageBox.Show(this, $"Please, create an issue on github page {IssuePage} with attached file '{ex.FilePath}'.",
 						"An error during loading process has occuered!", MessageBoxButton.OK, MessageBoxImage.Error);
 				});
@@ -215,8 +239,8 @@ namespace uTinyRipperGUI
 			{
 				Dispatcher.Invoke(() =>
 				{
-					Logger.Instance.Log(LogType.Error, LogCategory.Import, ex.ToString());
-					AddHyperlinkText("Go to: ", "Create issue", IssuePage);
+					Logger.Log(LogType.Error, LogCategory.Import, ex.ToString());
+					AddHyperlinkToConsole("Go to: ", "Create issue", IssuePage);
 					MessageBox.Show(this, $"Please, create an issue on github page {IssuePage} with attached file that cause this error.",
 						"An error during loading process has occuered!", MessageBoxButton.OK, MessageBoxImage.Error);
 				});
@@ -248,7 +272,10 @@ namespace uTinyRipperGUI
 			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.Cubemap, textureExporter);
 			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.Sprite, textureExporter);
 			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.Shader, new ShaderAssetExporter());
+			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.TextAsset, new TextAssetExporter());
 			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.AudioClip, new AudioAssetExporter());
+			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.Font, new FontAssetExporter());
+			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.MovieTexture, new MovieTextureAssetExporter());
 
 			EngineAssetExporter engineExporter = new EngineAssetExporter();
 			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.Material, engineExporter);
@@ -257,6 +284,7 @@ namespace uTinyRipperGUI
 			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.Shader, engineExporter);
 			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.Font, engineExporter);
 			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.Sprite, engineExporter);
+			GameStructure.FileCollection.Exporter.OverrideExporter(ClassIDType.MonoBehaviour, engineExporter);
 
 #if !DEBUG
 			try
@@ -267,11 +295,11 @@ namespace uTinyRipperGUI
 #if !DEBUG
 			catch (SerializedFileException ex)
 			{
-				Logger.Instance.Log(LogType.Error, LogCategory.Import, ex.ToString());
+				Logger.Log(LogType.Error, LogCategory.Import, ex.ToString());
 				Dispatcher.Invoke(() =>
 				{
-					AddHyperlinkText("Go to: ", "Create issue", IssuePage);
-					AddHyperlinkText("Attach file: ", ex.FileName, ex.FilePath);
+					AddHyperlinkToConsole("Go to: ", "Create issue", IssuePage);
+					AddHyperlinkToConsole("Attach file: ", ex.FileName, ex.FilePath);
 					MessageBox.Show(this, $"Please, create an issue on github page {IssuePage} with attached file '{ex.FilePath}'.",
 						"An error during export process has occuered!", MessageBoxButton.OK, MessageBoxImage.Error);
 				});
@@ -279,17 +307,17 @@ namespace uTinyRipperGUI
 			}
 			catch (Exception ex)
 			{
-				Logger.Instance.Log(LogType.Error, LogCategory.Import, ex.ToString());
+				Logger.Log(LogType.Error, LogCategory.Import, ex.ToString());
 				Dispatcher.Invoke(() =>
 				{
-					AddHyperlinkText("Go to: ", "Create issue", IssuePage);
+					AddHyperlinkToConsole("Go to: ", "Create issue", IssuePage);
 					MessageBox.Show(this, $"Please, create an issue on github page {IssuePage} with attached file that cause this error.",
 						"An error during loading process has occuered!", MessageBoxButton.OK, MessageBoxImage.Error);
 				});
 				return;
 			}
 #endif
-			Logger.Instance.Log(LogType.Info, LogCategory.General, "Finished!!!");
+			Logger.Log(LogType.Info, LogCategory.General, "Finished!!!");
 
 			Dispatcher.Invoke(() =>
 				{
@@ -303,13 +331,13 @@ namespace uTinyRipperGUI
 
 		private void Validate()
 		{
-			Version[] versions = GameStructure.FileCollection.Files.Select(t => t.Version).Distinct().ToArray();
+			Version[] versions = GameStructure.FileCollection.GameFiles.Values.Select(t => t.Version).Distinct().ToArray();
 			if (versions.Length > 1)
 			{
-				Logger.Instance.Log(LogType.Warning, LogCategory.Import, $"Asset collection has versions probably incompatible with each other. Here they are:");
+				Logger.Log(LogType.Warning, LogCategory.Import, $"Asset collection has versions probably incompatible with each other. Here they are:");
 				foreach (Version version in versions)
 				{
-					Logger.Instance.Log(LogType.Warning, LogCategory.Import, version.ToString());
+					Logger.Log(LogType.Warning, LogCategory.Import, version.ToString());
 				}
 			}
 		}
@@ -339,11 +367,76 @@ namespace uTinyRipperGUI
 			Process.Start(info);
 		}
 
-		private GameStructure GameStructure { get; set; }
+		private void OnImportStarted()
+		{
+			Dispatcher.Invoke(() => StatusText.Text = "Status: importing...");
+		}
+
+		private void OnImportFinished()
+		{
+			Dispatcher.Invoke(() => StatusText.Text = "Status: import finished");
+		}
+
+		private void OnExportPreparationStarted()
+		{
+			Dispatcher.Invoke(() => StatusText.Text = "Status: analyzing assets...");
+		}
+
+		private void OnExportPreparationFinished()
+		{
+			Dispatcher.Invoke(() => StatusText.Text = "Status: analysis finished");
+		}
+
+		private void OnExportStarted()
+		{
+			Dispatcher.Invoke(() => StatusText.Text = "Status: exporting...");
+		}
+
+		private void OnExportProgressUpdated(int index, int count)
+		{
+			Dispatcher.InvokeAsync(() => StatusText.Text = $"Status: exporting... {index}/{count} - {((float)index / (float)count) * 100.0f:0.00}%");
+		}
+
+		private void OnExportFinished()
+		{
+			Dispatcher.InvokeAsync(() => StatusText.Text = "Status: export finished");
+		}
+
+		private GameStructure GameStructure
+		{
+			get => m_gameStructure;
+			set
+			{
+				if (m_gameStructure == value)
+				{
+					return;
+				}
+				if (m_gameStructure != null)
+				{
+					m_gameStructure.FileCollection.Exporter.EventExportFinished -= OnExportFinished;
+					m_gameStructure.FileCollection.Exporter.EventExportProgressUpdated -= OnExportProgressUpdated;
+					m_gameStructure.FileCollection.Exporter.EventExportStarted -= OnExportStarted;
+					m_gameStructure.FileCollection.Exporter.EventExportPreparationFinished -= OnExportPreparationFinished;
+					m_gameStructure.FileCollection.Exporter.EventExportPreparationStarted -= OnExportPreparationStarted;
+				}
+				m_gameStructure = value;
+				if (value != null)
+				{
+					value.FileCollection.Exporter.EventExportPreparationStarted += OnExportPreparationStarted;
+					value.FileCollection.Exporter.EventExportPreparationFinished += OnExportPreparationFinished;
+					value.FileCollection.Exporter.EventExportStarted += OnExportStarted;
+					value.FileCollection.Exporter.EventExportProgressUpdated += OnExportProgressUpdated;
+					value.FileCollection.Exporter.EventExportFinished += OnExportFinished;
+				}
+			}
+		}
 
 		private const string IssuePage = "https://github.com/mafaca/UtinyRipper/issues";
 
-		private string m_initialText;
+		private GameStructure m_gameStructure;
+		private string m_initialIntroText;
+		private string m_initialStatusText;
+		private TextRange m_outputContentStart;
 		private string m_exportPath;
 		private string[] m_processingFiles;
 	}

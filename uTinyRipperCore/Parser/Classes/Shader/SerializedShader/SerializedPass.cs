@@ -1,7 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.IO;
-using uTinyRipper.Classes.Shaders.Exporters;
 
 namespace uTinyRipper.Classes.Shaders
 {
@@ -21,7 +19,7 @@ namespace uTinyRipper.Classes.Shaders
 			ProgHull.Read(reader);
 			ProgDomain.Read(reader);
 			HasInstancingVariant = reader.ReadBoolean();
-			reader.AlignStream(AlignType.Align4);
+			reader.AlignStream();
 
 			UseName = reader.ReadString();
 			Name = reader.ReadString();
@@ -31,7 +29,7 @@ namespace uTinyRipper.Classes.Shaders
 
 		public void Export(ShaderWriter writer)
 		{
-			writer.WriteIntent(2);
+			writer.WriteIndent(2);
 			writer.Write("{0} ", Type.ToString());
 
 			if (Type == SerializedPassType.UsePass)
@@ -46,7 +44,7 @@ namespace uTinyRipper.Classes.Shaders
 				{
 					if(TextureName != string.Empty)
 					{
-						writer.WriteIntent(3);
+						writer.WriteIndent(3);
 						writer.Write("\"{0}\"\n", TextureName);
 					}
 				}
@@ -54,13 +52,27 @@ namespace uTinyRipper.Classes.Shaders
 				{
 					State.Export(writer);
 
-					ProgVertex.Export(writer, ShaderType.Vertex);
-					ProgFragment.Export(writer, ShaderType.Fragment);
-					ProgGeometry.Export(writer, ShaderType.Geometry);
-					ProgHull.Export(writer, ShaderType.Hull);
-					ProgDomain.Export(writer, ShaderType.Domain);
+					if ((ProgramMask & ShaderType.Vertex.ToProgramMask()) != 0)
+					{
+						ProgVertex.Export(writer, ShaderType.Vertex);
+					}
+					if ((ProgramMask & ShaderType.Fragment.ToProgramMask()) != 0)
+					{
+						ProgFragment.Export(writer, ShaderType.Fragment);
+					}
+					if ((ProgramMask & ShaderType.Geometry.ToProgramMask()) != 0)
+					{
+						ProgGeometry.Export(writer, ShaderType.Geometry);
+					}
+					if ((ProgramMask & ShaderType.Hull.ToProgramMask()) != 0)
+					{
+						ProgHull.Export(writer, ShaderType.Hull);
+					}
+					if ((ProgramMask & ShaderType.Domain.ToProgramMask()) != 0)
+					{
+						ProgDomain.Export(writer, ShaderType.Domain);
+					}
 
-#warning ProgramMask?
 #warning HasInstancingVariant?
 				}
 				else
@@ -68,18 +80,18 @@ namespace uTinyRipper.Classes.Shaders
 					throw new NotSupportedException($"Unsupported pass type {Type}");
 				}
 
-				writer.WriteIntent(2);
+				writer.WriteIndent(2);
 				writer.Write("}\n");
 			}
 		}
 		
 		public IReadOnlyDictionary<string, int> NameIndices => m_nameIndices;
-		public SerializedPassType Type { get; private set; }
-		public uint ProgramMask { get; private set; }
-		public bool HasInstancingVariant { get; private set; }
-		public string UseName { get; private set; }
-		public string Name { get; private set; }
-		public string TextureName { get; private set; }
+		public SerializedPassType Type { get; set; }
+		public uint ProgramMask { get; set; }
+		public bool HasInstancingVariant { get; set; }
+		public string UseName { get; set; }
+		public string Name { get; set; }
+		public string TextureName { get; set; }
 
 		public SerializedShaderState State;
 		public SerializedProgram ProgVertex;

@@ -1,5 +1,5 @@
-﻿using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes.ParticleSystems
 {
@@ -11,23 +11,11 @@ namespace uTinyRipper.Classes.ParticleSystems
 			CycleCount = 1;
 			RepeatInterval = 0.01f;
 			CountCurve = new MinMaxCurve(minValue, maxValue);
+			Probability = 1.0f;
 		}
 
-		/// <summary>
-		/// 2017.2 and greater
-		/// </summary>
-		public static bool IsReadCurve(Version version)
+		public static int ToSerializedVersion(Version version)
 		{
-			return version.IsGreaterEqual(2017, 2);
-		}
-
-		private static int GetSerializedVersion(Version version)
-		{
-			if (Config.IsExportTopmostSerializedVersion)
-			{
-				return 2;
-			}
-			
 			if (version.IsGreaterEqual(2017, 2))
 			{
 				return 2;
@@ -35,10 +23,19 @@ namespace uTinyRipper.Classes.ParticleSystems
 			return 1;
 		}
 
+		/// <summary>
+		/// 2017.2 and greater
+		/// </summary>
+		public static bool HasCurve(Version version) => version.IsGreaterEqual(2017, 2);
+		/// <summary>
+		/// 2018.3 and greater
+		/// </summary>
+		public static bool HasProbability(Version version) => version.IsGreaterEqual(2018, 3);
+
 		public void Read(AssetReader reader)
 		{
 			Time = reader.ReadSingle();
-			if (IsReadCurve(reader.Version))
+			if (HasCurve(reader.Version))
 			{
 				CountCurve.Read(reader);
 			}
@@ -50,22 +47,37 @@ namespace uTinyRipper.Classes.ParticleSystems
 			}
 			CycleCount = reader.ReadInt32();
 			RepeatInterval = reader.ReadSingle();
+			if (HasProbability(reader.Version))
+			{
+				Probability = reader.ReadSingle();
+			}
 		}
 
 		public YAMLNode ExportYAML(IExportContainer container)
 		{
 			YAMLMappingNode node = new YAMLMappingNode();
-			node.AddSerializedVersion(GetSerializedVersion(container.Version));
-			node.Add("time", Time);
-			node.Add("countCurve", CountCurve.ExportYAML(container));
-			node.Add("cycleCount", CycleCount);
-			node.Add("repeatInterval", RepeatInterval);
+			node.AddSerializedVersion(ToSerializedVersion(container.ExportVersion));
+			node.Add(TimeName, Time);
+			node.Add(CountCurveName, CountCurve.ExportYAML(container));
+			node.Add(CycleCountName, CycleCount);
+			node.Add(RepeatIntervalName, RepeatInterval);
+			if (HasProbability(container.ExportVersion))
+			{
+				node.Add(ProbabilityName, Probability);
+			}
 			return node;
 		}
 
-		public float Time { get; private set; }
-		public int CycleCount { get; private set; }
-		public float RepeatInterval { get; private set; }
+		public float Time { get; set; }
+		public int CycleCount { get; set; }
+		public float RepeatInterval { get; set; }
+		public float Probability { get; set; }
+
+		public const string TimeName = "time";
+		public const string CountCurveName = "countCurve";
+		public const string CycleCountName = "cycleCount";
+		public const string RepeatIntervalName = "repeatInterval";
+		public const string ProbabilityName = "probability";
 
 		public MinMaxCurve CountCurve;
 	}

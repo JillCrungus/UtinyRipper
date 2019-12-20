@@ -1,94 +1,92 @@
-﻿using SevenZip;
 using System;
-using System.Collections.Generic;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
+using System.Linq;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
+using uTinyRipper;
 
 namespace uTinyRipper.Classes.Meshes
 {
-	public struct BlendShapeData : IAssetReadable, IYAMLExportable
+	public struct BlendShapeData : IAsset
 	{
-		/// <summary>
-		/// 4.3.0 and greater
-		/// </summary>
-		public static bool IsReadChannels(Version version)
+		public BlendShapeData(Version version)
 		{
-			return version.IsGreaterEqual(4, 3);
+			Vertices = Array.Empty<BlendShapeVertex>();
+			Shapes = Array.Empty<BlendShape>();
+			Channels = Array.Empty<BlendShapeChannel>();
+			FullWeights = Array.Empty<float>();
 		}
 
 		/// <summary>
 		/// 2017.1 and greater
 		/// </summary>
-		private static bool IsAlign(Version version)
-		{
-			return version.IsGreaterEqual(2017);
-		}
+		private static bool IsAlign(Version version) => version.IsGreaterEqual(2017);
 
-		public string FindShapeNameByCRC(Version version, uint crc)
+		public string FindShapeNameByCRC(uint crc)
 		{
-			if (IsReadChannels(version))
+			foreach (BlendShapeChannel blendChannel in Channels)
 			{
-				foreach (BlendShapeChannel blendChannel in Channels)
+				if (blendChannel.NameHash == crc)
 				{
-					if (blendChannel.IsCRCMatch(crc))
-					{
-						return blendChannel.Name;
-					}
-				}
-			}
-			else
-			{
-				foreach (BlendShape blendShape in Shapes)
-				{
-					if (blendShape.IsCRCMatch(crc))
-					{
-						return blendShape.Name;
-					}
+					return blendChannel.Name;
 				}
 			}
 			return null;
 		}
 
+		public BlendShapeData Convert()
+		{
+			BlendShapeData instance = new BlendShapeData();
+			instance.Vertices = Vertices.ToArray();
+			instance.Shapes = Shapes.ToArray();
+			instance.Channels = Channels.ToArray();
+			instance.FullWeights = FullWeights.ToArray();
+			return instance;
+		}
+
 		public void Read(AssetReader reader)
 		{
-			if (IsReadChannels(reader.Version))
+			Vertices = reader.ReadAssetArray<BlendShapeVertex>();
+			Shapes = reader.ReadAssetArray<BlendShape>();
+			Channels = reader.ReadAssetArray<BlendShapeChannel>();
+			if (IsAlign(reader.Version))
 			{
-				m_vertices = reader.ReadArray<BlendShapeVertex>();
-				m_shapes = reader.ReadArray<BlendShape>();
-				m_channels = reader.ReadArray<BlendShapeChannel>();
-				if (IsAlign(reader.Version))
-				{
-					reader.AlignStream(AlignType.Align4);
-				}
+				reader.AlignStream();
+			}
 
-				m_fullWeights = reader.ReadSingleArray();
-			}
-			else
+			FullWeights = reader.ReadSingleArray();
+		}
+
+		public void Write(AssetWriter writer)
+		{
+			Vertices.Write(writer);
+			Shapes.Write(writer);
+			Channels.Write(writer);
+			if (IsAlign(writer.Version))
 			{
-				m_shapes = reader.ReadArray<BlendShape>();
-				reader.AlignStream(AlignType.Align4);
-				m_vertices = reader.ReadArray<BlendShapeVertex>();
+				writer.AlignStream();
 			}
+
+			FullWeights.Write(writer);
 		}
 
 		public YAMLNode ExportYAML(IExportContainer container)
 		{
 			YAMLMappingNode node = new YAMLMappingNode();
-			node.Add("vertices", (m_vertices == null) ? YAMLSequenceNode.Empty : m_vertices.ExportYAML(container));
-			node.Add("shapes", (m_shapes == null) ? YAMLSequenceNode.Empty : m_shapes.ExportYAML(container));
-			node.Add("channels", IsReadChannels(container.Version) ? m_channels.ExportYAML(container) : YAMLSequenceNode.Empty);
-			node.Add("fullWeights", IsReadChannels(container.Version) ? m_fullWeights.ExportYAML() : YAMLSequenceNode.Empty);
+			node.Add(VerticesName, Vertices.ExportYAML(container));
+			node.Add(ShapesName, Shapes.ExportYAML(container));
+			node.Add(ChannelsName, Channels.ExportYAML(container));
+			node.Add(FullWeightsName, FullWeights.ExportYAML());
 			return node;
 		}
 
-		public IReadOnlyList<BlendShapeVertex> Vertices => m_vertices;
-		public IReadOnlyList<BlendShape> Shapes => m_shapes;
-		public IReadOnlyList<BlendShapeChannel> Channels => m_channels;
-		public IReadOnlyList<float> FullWeights => m_fullWeights;
+		public BlendShapeVertex[] Vertices { get; set; }
+		public BlendShape[] Shapes { get; set; }
+		public BlendShapeChannel[] Channels { get; set; }
+		public float[] FullWeights { get; set; }
 
-		private BlendShapeVertex[] m_vertices;
-		private BlendShape[] m_shapes;
-		private BlendShapeChannel[] m_channels;
-		private float[] m_fullWeights;
+		public const string VerticesName = "vertices";
+		public const string ShapesName = "shapes";
+		public const string ChannelsName = "channels";
+		public const string FullWeightsName = "fullWeights";
 	}
 }

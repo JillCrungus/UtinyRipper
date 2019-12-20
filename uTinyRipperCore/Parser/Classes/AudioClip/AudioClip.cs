@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using uTinyRipper.AssetExporters;
 using uTinyRipper.Classes.AudioClips;
-using uTinyRipper.Classes.Textures;
-using uTinyRipper.Exporter.YAML;
+using uTinyRipper.Classes.Misc;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes
 {
@@ -15,168 +15,11 @@ namespace uTinyRipper.Classes
 		{
 		}
 
-		/// <summary>
-		/// 5.0.0 and greater
-		/// </summary>
-		public static bool IsReadLoadType(Version version)
+		public static int ToSerializedVersion(Version version)
 		{
-			return version.IsGreaterEqual(5);
-		}
-		/// <summary>
-		/// Greater than 5.0.0b1
-		/// </summary>
-		public static bool IsReadIsTrackerFormat(Version version)
-		{
-#warning unknown
-			return version.IsGreater(5, 0, 0, VersionType.Beta, 1);
-		}
-		/// <summary>
-		/// 2017.1 and greater
-		/// </summary>
-		public static bool IsReadAmbisonic(Version version)
-		{
-			return version.IsGreater(2017);
-		}
-		
-		/// <summary>
-		/// 5.0.0b1
-		/// </summary>
-		public static bool IsReadAudioClipFlags(Version version)
-		{
-#warning unknown
-			return version.IsEqual(5, 0, 0, VersionType.Beta, 1);
-		}
-		/// <summary>
-		/// Greater than 5.0.0b1
-		/// </summary>
-		public static bool IsReadCompressionFormat(Version version)
-		{
-#warning unknown
-			return version.IsGreater(5, 0, 0, VersionType.Beta, 1);
-		}
-
-		/// <summary>
-		/// 2.0.0 to 3.0.0 exclusive
-		/// </summary>
-		public static bool IsReadDecompressOnLoad(Version version)
-		{
-			return version.IsGreaterEqual(2) && version.IsLess(3);
-		}
-		/// <summary>
-		/// 2.6.0 to 5.0.0b1
-		/// </summary>
-		public static bool IsReadType(Version version)
-		{
-#warning unknown top version
-			return version.IsGreaterEqual(2, 6) && version.IsLessEqual(5, 0, 0, VersionType.Beta, 1);
-		}
-		/// <summary>
-		/// Less than 2.6.0
-		/// </summary>
-		public static bool IsReadLength(Version version)
-		{
-			return version.IsLess(2, 6);
-		}
-		/// <summary>
-		/// 2.6.0 and greater
-		/// </summary>
-		public static bool IsRead3D(Version version)
-		{
-			return version.IsGreaterEqual(2, 6);
-		}
-		/// <summary>
-		/// 3.0.0 to 5.0.0 exclusive
-		/// </summary>
-		public static bool IsReadUseHardware(Version version)
-		{
-			return version.IsGreaterEqual(3);
-		}
-		/// <summary>
-		/// 3.2.0 and greater
-		/// </summary>
-		public static bool IsReadStreamingInfo(Version version)
-		{
-			return version.IsGreaterEqual(3, 2);
-		}
-		/// <summary>
-		/// 3.0.0 to 5.0.0 exclusive
-		/// </summary>
-		public static bool IsReadStream(Version version)
-		{
-			return version.IsGreaterEqual(3);
-		}
-
-		/// <summary>
-		/// 5.0.0b1
-		/// </summary>
-		private static bool IsReadFSBResourceFirst(Version version)
-		{
-#warning unknown
-			return version.IsEqual(5, 0, 0, VersionType.Beta, 1);
-		}
-
-		/// <summary>
-		/// Greater than 5.0.0b1
-		/// </summary>
-		private static bool IsAlignTrackerFormat(Version version)
-		{
-#warning unknown
-			return version.IsGreater(5, 0, 0, VersionType.Beta, 1);
-		}
-
-		/// <summary>
-		/// 2.0.x
-		/// </summary>
-		private static bool IsReadDecompressOnLoadFirst(Version version)
-		{
-			return version.IsEqual(2, 0);
-		}
-		/// <summary>
-		/// 2.1.0 to 2.6.0 exclusive
-		/// </summary>
-		private static bool IsReadDecompressOnLoadSecond(Version version)
-		{
-			return version.IsGreaterEqual(2, 1) && version.IsLess(2, 6);
-		}
-		/// <summary>
-		/// 2.6.0
-		/// </summary>
-		private static bool IsReadDecompressOnLoadThird(Version version)
-		{
-			return version.IsEqual(2, 6);
-		}
-		/// <summary>
-		/// 3.2.0 and greater
-		/// </summary>
-		private static bool IsStreamInt32(Version version)
-		{
-			return version.IsGreaterEqual(3, 2);
-		}
-		/// <summary>
-		/// 2.1.0 and greater
-		/// </summary>
-		private static bool IsAlignBools(Version version)
-		{
-			return version.IsGreaterEqual(2, 1);
-		}
-		/// <summary>
-		/// 2.1.0 to 3.0.0 exclusive or 3.2.0 and greater
-		/// </summary>
-		private static bool IsAlignAudioData(Version version)
-		{
-			return version.IsGreaterEqual(2, 1) && version.IsLess(3) || version.IsGreaterEqual(3, 2);
-		}
-
-		private static int GetSerializedVersion(Version version)
-		{
-			if (Config.IsExportTopmostSerializedVersion)
-			{
-				// topmost engine version doesn't conatain any serialized versions
-				return 1;
-			}
-			
 			if (version.IsGreaterEqual(5))
 			{
+				// old AudioClip asset format isn't compatible with new Engine version
 				return 1;
 			}
 			if (version.IsGreaterEqual(3, 5))
@@ -191,36 +34,170 @@ namespace uTinyRipper.Classes
 			return 2;
 		}
 
+		/// <summary>
+		/// 5.0.0 and greater
+		/// </summary>
+		public static bool HasLoadType(Version version) => version.IsGreaterEqual(5);
+		/// <summary>
+		/// 5.0.0f1 and greater (NOTE: unknown version)
+		/// </summary>
+		public static bool HasIsTrackerFormat(Version version) => version.IsGreaterEqual(5, 0, 0, VersionType.Final);
+		/// <summary>
+		/// 2017.1 and greater
+		/// </summary>
+		public static bool HasAmbisonic(Version version) => version.IsGreater(2017);
+
+		/// <summary>
+		/// 5.0.0bx (NOTE: unknown version)
+		/// </summary>
+		public static bool HasAudioClipFlags(Version version) => version.IsEqual(5, 0, 0, VersionType.Beta);
+		/// <summary>
+		/// 5.0.0f1 and greater (NOTE: unknown version)
+		/// </summary>
+		public static bool HasCompressionFormat(Version version) => version.IsGreaterEqual(5, 0, 0, VersionType.Final);
+		/// <summary>
+		/// Not Release
+		/// </summary>
+		public static bool HasEditorResource(TransferInstructionFlags flags) => !flags.IsRelease();
+
+		/// <summary>
+		/// 2.0.0 to 3.0.0 exclusive
+		/// </summary>
+		public static bool HasDecompressOnLoad(Version version) => version.IsGreaterEqual(2) && version.IsLess(3);
+		/// <summary>
+		/// 2.6.0 to 5.0.0bx (NOTE: unknown version)
+		/// </summary>
+		public static bool HasType(Version version) => version.IsGreaterEqual(2, 6) && version.IsLessEqual(5, 0, 0, VersionType.Beta);
+		/// <summary>
+		/// Less than 2.6.0
+		/// </summary>
+		public static bool HasLength(Version version) => version.IsLess(2, 6);
+		/// <summary>
+		/// 2.6.0 and greater
+		/// </summary>
+		public static bool Has3D(Version version) => version.IsGreaterEqual(2, 6);
+		/// <summary>
+		/// 3.0.0 to 5.0.0 exclusive
+		/// </summary>
+		public static bool HasUseHardware(Version version) => version.IsGreaterEqual(3);
+		/// <summary>
+		/// 3.2.0 and greater
+		/// </summary>
+		public static bool HasStreamingInfo(Version version) => version.IsGreaterEqual(3, 2);
+		/// <summary>
+		/// 3.0.0 to 5.0.0 exclusive
+		/// </summary>
+		public static bool HasStream(Version version) => version.IsGreaterEqual(3);
+
+		/// <summary>
+		/// 5.0.0f1 and greater
+		/// </summary>
+		private static bool IsAlignTrackerFormat(Version version)
+		{
+			// unknown version
+			return version.IsGreaterEqual(5, 0, 0, VersionType.Final);
+		}
+
+		/// <summary>
+		/// 5.0.0bx (NOTE: unknown version)
+		/// </summary>
+		private static bool IsFSBResourceFirst(Version version) => version.IsEqual(5, 0, 0, VersionType.Beta);
+		private static int GetDecompressOnLoadOrder(Version version)
+		{
+			if (version.IsEqual(2, 6))
+			{
+				return 3;
+			}
+			if (version.IsGreaterEqual(2, 1) && version.IsLess(2, 6))
+			{
+				return 2;
+			}
+			return 1;
+		}
+		/// <summary>
+		/// 3.2.0 and greater
+		/// </summary>
+		private static bool IsStreamInt32(Version version) => version.IsGreaterEqual(3, 2);
+		/// <summary>
+		/// 2.1.0 and greater
+		/// </summary>
+		private static bool IsAlignBools(Version version) => version.IsGreaterEqual(2, 1);
+		/// <summary>
+		/// 2.1.0 to 3.0.0 exclusive or 3.2.0 and greater
+		/// </summary>
+		private static bool IsAlignAudioData(Version version) => version.IsGreaterEqual(2, 1) && version.IsLess(3) || version.IsGreaterEqual(3, 2);
+
+		public bool CheckAssetIntegrity()
+		{
+			if (HasLoadType(File.Version))
+			{
+				return FSBResource.CheckIntegrity(File);
+			}
+			else if (HasStreamingInfo(File.Version))
+			{
+				if (LoadType == AudioClipLoadType.Streaming)
+				{
+					if (AudioData == null)
+					{
+						return StreamingInfo.CheckIntegrity(File);
+					}
+				}
+			}
+			return true;
+		}
+
+		public IReadOnlyList<byte> GetAudioData()
+		{
+			if (HasLoadType(File.Version))
+			{
+				return FSBResource.GetContent(File) ?? Array.Empty<byte>();
+			}
+			else
+			{
+				if (HasStreamingInfo(File.Version))
+				{
+					if (LoadType == AudioClipLoadType.Streaming)
+					{
+						if (AudioData == null)
+						{
+							return StreamingInfo.GetContent(File) ?? Array.Empty<byte>();
+						}
+					}
+				}
+				return AudioData;
+			}
+		}
+
 		public override void Read(AssetReader reader)
 		{
 			base.Read(reader);
-			
-			if (IsReadLoadType(reader.Version))
+
+			if (HasLoadType(reader.Version))
 			{
 				LoadType = (AudioClipLoadType)reader.ReadInt32();
 				Channels = reader.ReadInt32();
 				Frequency = reader.ReadInt32();
 				BitsPerSample = reader.ReadInt32();
 				Length = reader.ReadSingle();
-				
-				if (IsReadIsTrackerFormat(reader.Version))
+
+				if (HasIsTrackerFormat(reader.Version))
 				{
 					IsTrackerFormat = reader.ReadBoolean();
 				}
-				if (IsReadAmbisonic(reader.Version))
+				if (HasAmbisonic(reader.Version))
 				{
 					Ambisonic = reader.ReadBoolean();
 				}
 				if (IsAlignTrackerFormat(reader.Version))
 				{
-					reader.AlignStream(AlignType.Align4);
+					reader.AlignStream();
 				}
 
-				if (IsReadAudioClipFlags(reader.Version))
+				if (HasAudioClipFlags(reader.Version))
 				{
 					AudioClipFlags = reader.ReadInt32();
 				}
-				if (IsReadFSBResourceFirst(reader.Version))
+				if (IsFSBResourceFirst(reader.Version))
 				{
 					FSBResource.Read(reader);
 				}
@@ -229,57 +206,69 @@ namespace uTinyRipper.Classes
 				PreloadAudioData = reader.ReadBoolean();
 				LoadInBackground = reader.ReadBoolean();
 				Legacy3D = reader.ReadBoolean();
-				reader.AlignStream(AlignType.Align4);
+				reader.AlignStream();
 
-				if (!IsReadFSBResourceFirst(reader.Version))
+				if (!IsFSBResourceFirst(reader.Version))
 				{
 					FSBResource.Read(reader);
 				}
 
-				if (IsReadType(reader.Version))
+				if (HasType(reader.Version))
 				{
 					Type = (FMODSoundType)reader.ReadInt32();
 				}
-				if (IsReadCompressionFormat(reader.Version))
+				if (HasCompressionFormat(reader.Version))
 				{
 					CompressionFormat = (AudioCompressionFormat)reader.ReadInt32();
 				}
-				reader.AlignStream(AlignType.Align4);
+				reader.AlignStream();
+
+#if UNIVERSAL
+				if (HasEditorResource(reader.Flags))
+				{
+					EditorResource.Read(reader);
+					if (HasCompressionFormat(reader.Version))
+					{
+						EditorCompressionFormat = (AudioCompressionFormat)reader.ReadInt32();
+					}
+				}
+#endif
 			}
 			else
 			{
-				if (IsReadDecompressOnLoadFirst(reader.Version))
+				int decompressionOrder = GetDecompressOnLoadOrder(reader.Version);
+				if (decompressionOrder == 1)
 				{
 					DecompressOnLoad = reader.ReadBoolean();
 				}
 
 				Format = (FMODSoundFormat)reader.ReadInt32();
-				if (IsReadType(reader.Version))
+				if (HasType(reader.Version))
 				{
 					Type = (FMODSoundType)reader.ReadInt32();
 				}
-				if (IsReadLength(reader.Version))
+				if (HasLength(reader.Version))
 				{
 					Length = reader.ReadSingle();
 					Frequency = reader.ReadInt32();
 					Size = reader.ReadInt32();
 				}
-			
-				if (IsReadDecompressOnLoadSecond(reader.Version))
+
+				if (decompressionOrder == 2)
 				{
 					DecompressOnLoad = reader.ReadBoolean();
 				}
-				if (IsRead3D(reader.Version))
+				if (Has3D(reader.Version))
 				{
 					Legacy3D = reader.ReadBoolean();
 				}
-				if (IsReadUseHardware(reader.Version))
+				if (HasUseHardware(reader.Version))
 				{
 					UseHardware = reader.ReadBoolean();
 				}
 				if (IsAlignBools(reader.Version))
 				{
-					reader.AlignStream(AlignType.Align4);
+					reader.AlignStream();
 				}
 
 				if (IsStreamInt32(reader.Version))
@@ -287,20 +276,13 @@ namespace uTinyRipper.Classes
 					LoadType = (AudioClipLoadType)reader.ReadInt32();
 				}
 
-				if (IsReadStreamingInfo(reader.Version))
+				if (HasStreamingInfo(reader.Version))
 				{
-					bool isInnerData = true;
-					if (LoadType == AudioClipLoadType.Streaming)
+					bool isInnerData = LoadType == AudioClipLoadType.Streaming ? File.Collection.FindResourceFile(StreamingFileName) == null : true;
+					if (isInnerData)
 					{
-						using (ResourcesFile res = File.Collection.FindResourcesFile(File, StreamingFileName))
-						{
-							isInnerData = res == null;
-						}
-					}
-					if(isInnerData)
-					{
-						m_audioData = reader.ReadByteArray();
-						reader.AlignStream(AlignType.Align4);
+						AudioData = reader.ReadByteArray();
+						reader.AlignStream();
 					}
 					else
 					{
@@ -309,19 +291,19 @@ namespace uTinyRipper.Classes
 				}
 				else
 				{
-					m_audioData = reader.ReadByteArray();
+					AudioData = reader.ReadByteArray();
 					if (IsAlignAudioData(reader.Version))
 					{
-						reader.AlignStream(AlignType.Align4);
+						reader.AlignStream();
 					}
 				}
 
-				if (IsReadDecompressOnLoadThird(reader.Version))
+				if (decompressionOrder == 3)
 				{
 					DecompressOnLoad = reader.ReadBoolean();
 				}
 
-				if (IsReadStream(reader.Version))
+				if (HasStream(reader.Version))
 				{
 					if (!IsStreamInt32(reader.Version))
 					{
@@ -333,67 +315,35 @@ namespace uTinyRipper.Classes
 
 		public override void ExportBinary(IExportContainer container, Stream stream)
 		{
-			if (IsReadLoadType(container.Version))
+			if (HasLoadType(container.Version))
 			{
-				using (ResourcesFile res = File.Collection.FindResourcesFile(File, FSBResource.Source))
+				if (FSBResource.CheckIntegrity(File))
 				{
-					if (res == null)
-					{
-						Logger.Log(LogType.Warning, LogCategory.Export, $"Can't export '{ValidName}' because resources file '{FSBResource.Source}' hasn't been found");
-						return;
-					}
-
-					if (StreamedResource.IsReadSize(container.Version))
-					{
-						using (PartialStream resStream = new PartialStream(res.Stream, res.Offset, res.Size))
-						{
-							resStream.Position = FSBResource.Offset;
-							resStream.CopyStream(stream, FSBResource.Size);
-						}
-					}
-					else
-					{
-						// I think they read data by its type for this verison, so I can't even export raw data :/
-						Logger.Log(LogType.Warning, LogCategory.Export, $"Can't export '{ValidName}' because of unknown size");
-					}
+					byte[] data = FSBResource.GetContent(File);
+					stream.Write(data, 0, data.Length);
+				}
+				else
+				{
+					Logger.Log(LogType.Warning, LogCategory.Export, $"Can't export '{ValidName}' because data can't be read from resources file '{FSBResource.Source}'");
 				}
 			}
 			else
 			{
-				if (IsReadStreamingInfo(container.Version))
+				if (HasStreamingInfo(container.Version) && LoadType == AudioClipLoadType.Streaming && AudioData == null)
 				{
-					if (LoadType == AudioClipLoadType.Streaming)
+					if (StreamingInfo.CheckIntegrity(File))
 					{
-						if(m_audioData == null)
-						{
-							using (ResourcesFile res = File.Collection.FindResourcesFile(File, StreamingInfo.Path))
-							{
-								if (res == null)
-								{
-									Logger.Log(LogType.Warning, LogCategory.Export, $"Can't export '{ValidName}' because resources file '{StreamingInfo.Path}' hasn't been found");
-									return;
-								}
-
-								using (PartialStream resStream = new PartialStream(res.Stream, res.Offset, res.Size))
-								{
-									resStream.Position = StreamingInfo.Offset;
-									resStream.CopyStream(stream, StreamingInfo.Size);
-								}
-							}
-						}
-						else
-						{
-							stream.Write(m_audioData, 0, m_audioData.Length);
-						}
+						byte[] data = StreamingInfo.GetContent(File);
+						stream.Write(data, 0, data.Length);
 					}
 					else
 					{
-						stream.Write(m_audioData, 0, m_audioData.Length);
+						Logger.Log(LogType.Warning, LogCategory.Export, $"Can't export '{ValidName}' because resources file '{StreamingInfo.Path}' hasn't been found");
 					}
 				}
 				else
 				{
-					stream.Write(m_audioData, 0, m_audioData.Length);
+					stream.Write(AudioData, 0, AudioData.Length);
 				}
 			}
 		}
@@ -401,13 +351,31 @@ namespace uTinyRipper.Classes
 		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
 		{
 			throw new NotSupportedException();
+			/*YAMLMappingNode node = base.ExportYAMLRoot(container);
+			node.AddSerializedVersion(container.ExportVersion);
+			node.Add(LoadTypeName, (int)LoadType);
+			node.Add(ChannelsName, Channels);
+			node.Add(FrequencyName, Frequency);
+			node.Add(BitsPerSampleName, BitsPerSample);
+			node.Add(LengthName, Length);
+			node.Add(IsTrackerFormatName, IsTrackerFormat);
+			node.Add(AmbisonicName, Ambisonic);
+			node.Add(SubsoundIndexName, SubsoundIndex);
+			node.Add(PreloadAudioDataName, PreloadAudioData);
+			node.Add(LoadInBackgroundName, LoadInBackground);
+			node.Add(Legacy3DName, Legacy3D);
+			node.Add(ResourceName, FSBResource.ExportYAML(container));
+			node.Add(CompressionFormatName, (int)CompressionFormat);
+			node.Add(EditorResourceName, EditorResource.ExportYAML(container));
+			node.Add(EditorCompressionFormatName, (int)EditorCompressionFormat);
+			return node;*/
 		}
 
 		public override string ExportExtension
 		{
 			get
 			{
-				if (IsReadType(File.Version))
+				if (HasType(File.Version))
 				{
 					switch (Type)
 					{
@@ -465,65 +433,63 @@ namespace uTinyRipper.Classes
 			}
 		}
 
-		public override bool IsValid
-		{
-			get
-			{
-				if(IsReadLoadType(File.Version))
-				{
-					return true;
-				}
-				if(IsReadStreamingInfo(File.Version))
-				{
-					if(LoadType == AudioClipLoadType.Streaming)
-					{
-						if (m_audioData == null)
-						{
-							return true;
-						}
-					}
-				}
-				return m_audioData.Length > 0;
-			}
-		}
-
 		/// <summary>
 		/// Stream previously
 		/// </summary>
-		public AudioClipLoadType LoadType { get; private set; }
-		public int Channels { get; private set; }
-		public int BitsPerSample { get; private set; }
-		public bool IsTrackerFormat { get; private set; }
-		public bool Ambisonic { get; private set; }
-		public int AudioClipFlags { get; private set; }
-		public int SubsoundIndex { get; private set; }
-		public bool PreloadAudioData { get; private set; }
-		public bool LoadInBackground { get; private set; }
-		public AudioCompressionFormat CompressionFormat { get; private set; }
+		public AudioClipLoadType LoadType { get; set; }
+		public int Channels { get; set; }
+		public int BitsPerSample { get; set; }
+		public bool IsTrackerFormat { get; set; }
+		public bool Ambisonic { get; set; }
+		public int AudioClipFlags { get; set; }
+		public int SubsoundIndex { get; set; }
+		public bool PreloadAudioData { get; set; }
+		public bool LoadInBackground { get; set; }
+		public AudioCompressionFormat CompressionFormat { get; set; }
+#if UNIVERSAL
+		public AudioCompressionFormat EditorCompressionFormat { get; set; }
+#endif
 
-		public bool DecompressOnLoad { get; private set; }
-		public FMODSoundFormat Format { get; private set; }
+		public bool DecompressOnLoad { get; set; }
+		public FMODSoundFormat Format { get; set; }
 		/// <summary>
 		/// SoundType in some versions
 		/// </summary>
 		public FMODSoundType Type {get; private set; }
-		public float Length { get; private set; }
-		public int Frequency { get; private set; }
-		public int Size { get; private set; }
+		public float Length { get; set; }
+		public int Frequency { get; set; }
+		public int Size { get; set; }
 		/// <summary>
 		/// 3D previously
 		/// </summary>
-		public bool Legacy3D { get; private set; }
-		public bool UseHardware { get; private set; }
-		public IReadOnlyList<byte> AudioData => m_audioData;
+		public bool Legacy3D { get; set; }
+		public bool UseHardware { get; set; }
+		public byte[] AudioData { get; set; }
 
 		private string StreamingFileName => File.Name + "." + StreamingFileExtension;
 
 		public const string StreamingFileExtension = "resS";
 
-		public StreamedResource FSBResource;
-		public StreamingInfo StreamingInfo;
+		public const string LoadTypeName = "m_LoadType";
+		public const string ChannelsName = "m_Channels";
+		public const string FrequencyName = "m_Frequency";
+		public const string BitsPerSampleName = "m_BitsPerSample";
+		public const string LengthName = "m_Length";
+		public const string IsTrackerFormatName = "m_IsTrackerFormat";
+		public const string AmbisonicName = "m_Ambisonic";
+		public const string SubsoundIndexName = "m_SubsoundIndex";
+		public const string PreloadAudioDataName = "m_PreloadAudioData";
+		public const string LoadInBackgroundName = "m_LoadInBackground";
+		public const string Legacy3DName = "m_Legacy3D";
+		public const string ResourceName = "m_Resource";
+		public const string CompressionFormatName = "m_CompressionFormat";
+		public const string EditorResourceName = "m_EditorResource";
+		public const string EditorCompressionFormatName = "m_EditorCompressionFormat";
 
-		private byte[] m_audioData;
+		public StreamedResource FSBResource;
+#if UNIVERSAL
+		public StreamedResource EditorResource;
+#endif
+		public StreamingInfo StreamingInfo;
 	}
 }

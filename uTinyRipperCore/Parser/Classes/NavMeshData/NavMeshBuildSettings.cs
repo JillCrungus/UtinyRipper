@@ -1,5 +1,5 @@
-﻿using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes.NavMeshDatas
 {
@@ -41,24 +41,17 @@ namespace uTinyRipper.Classes.NavMeshDatas
 			CellSize = navParams.CellSize;
 		}
 
+		public static int ToSerializedVersion(Version version)
+		{
+			return 2;
+			// NOTE: unknown version (5.6.0a)
+			//return 1;
+		}
+
 		/// <summary>
 		/// 2017.2 and greater
 		/// </summary>
-		public static bool IsReadDebug(Version version)
-		{
-			return version.IsGreaterEqual(2017, 2);
-		}
-
-		private static int GetSerializedVersion(Version version)
-		{
-			if (Config.IsExportTopmostSerializedVersion)
-			{
-				return 2;
-			}
-			return 2;
-			// 5.6.0.Alpha.unknown
-			//return 1;
-		}
+		public static bool HasDebug(Version version) => version.IsGreaterEqual(2017, 2);
 
 		public void Read(AssetReader reader)
 		{
@@ -77,7 +70,7 @@ namespace uTinyRipper.Classes.NavMeshDatas
 			TileSize = reader.ReadInt32();
 			// it is bool with align in 5.6 beta but there is no difference
 			AccuratePlacement = reader.ReadInt32();
-			if (IsReadDebug(reader.Version))
+			if (HasDebug(reader.Version))
 			{
 				Debug.Read(reader);
 			}
@@ -86,22 +79,23 @@ namespace uTinyRipper.Classes.NavMeshDatas
 		public YAMLNode ExportYAML(IExportContainer container)
 		{
 			YAMLMappingNode node = new YAMLMappingNode();
-			node.AddSerializedVersion(GetSerializedVersion(container.Version));
-			node.Add("agentTypeID", AgentTypeID);
-			node.Add("agentRadius", AgentRadius);
-			node.Add("agentHeight", AgentHeight);
-			node.Add("agentSlope", AgentSlope);
-			node.Add("agentClimb", AgentClimb);
-			node.Add("ledgeDropHeight", LedgeDropHeight);
-			node.Add("maxJumpAcrossDistance", MaxJumpAcrossDistance);
-			node.Add("minRegionArea", MinRegionArea);
-			node.Add("manualCellSize", ManualCellSize);
-			node.Add("cellSize", CellSize);
-			node.Add("manualTileSize", ManualTileSize);
-			node.Add("tileSize", TileSize);
-			node.Add("accuratePlacement", AccuratePlacement);
-			node.Add("debug", Debug.ExportYAML(container));
+			node.AddSerializedVersion(ToSerializedVersion(container.ExportVersion));
+			node.Add(AgentTypeIDName, AgentTypeID);
+			node.Add(AgentRadiusName, AgentRadius);
+			node.Add(AgentHeightName, AgentHeight);
+			node.Add(AgentSlopeName, AgentSlope);
+			node.Add(AgentClimbName, AgentClimb);
+			node.Add(LedgeDropHeightName, LedgeDropHeight);
+			node.Add(MaxJumpAcrossDistanceName, MaxJumpAcrossDistance);
+			node.Add(MinRegionAreaName, MinRegionArea);
+			node.Add(ManualCellSizeName, ManualCellSize);
+			node.Add(CellSizeName, CellSize);
+			node.Add(ManualTileSizeName, ManualTileSize);
+			node.Add(TileSizeName, TileSize);
+			node.Add(AccuratePlacementName, AccuratePlacement);
+			node.Add(DebugName, Debug.ExportYAML(container));
 			return node;
+
 		}
 
 		public int AgentTypeID { get; set; }
@@ -117,6 +111,21 @@ namespace uTinyRipper.Classes.NavMeshDatas
 		public int ManualTileSize { get; set; }
 		public int TileSize { get; set; }
 		public int AccuratePlacement { get; set; }
+
+		public const string AgentTypeIDName = "agentTypeID";
+		public const string AgentRadiusName = "agentRadius";
+		public const string AgentHeightName = "agentHeight";
+		public const string AgentSlopeName = "agentSlope";
+		public const string AgentClimbName = "agentClimb";
+		public const string LedgeDropHeightName = "ledgeDropHeight";
+		public const string MaxJumpAcrossDistanceName = "maxJumpAcrossDistance";
+		public const string MinRegionAreaName = "minRegionArea";
+		public const string ManualCellSizeName = "manualCellSize";
+		public const string CellSizeName = "cellSize";
+		public const string ManualTileSizeName = "manualTileSize";
+		public const string TileSizeName = "tileSize";
+		public const string AccuratePlacementName = "accuratePlacement";
+		public const string DebugName = "debug";
 
 		public NavMeshBuildDebugSettings Debug;
 	}

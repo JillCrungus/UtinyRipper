@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using uTinyRipper.AssetExporters;
 using uTinyRipper.Classes.EditorBuildSettingss;
-using uTinyRipper.Exporter.YAML;
+using uTinyRipper.YAML;
 using uTinyRipper.SerializedFiles;
+using uTinyRipper.Converters;
 
 namespace uTinyRipper.Classes
 {
@@ -20,34 +20,26 @@ namespace uTinyRipper.Classes
 			return virtualFile.CreateAsset((assetInfo) => new EditorBuildSettings(assetInfo));
 		}
 
-		/// <summary>
-		/// 2018.1 and greater
-		/// </summary>
-		public static bool IsReadConfigObjects(Version version)
+		public static int ToSerializedVersion(Version version)
 		{
-			return version.IsGreaterEqual(2018);
-		}
-
-		private static bool IsReadScenes(Version version)
-		{
-#warning unknown
-			return version.IsGreaterEqual(2, 5);
-		}
-
-		private static int GetSerializedVersion(Version version)
-		{
-			if (Config.IsExportTopmostSerializedVersion)
-			{
-				return 2;
-			}
-
+			// unknown version
 			// KeyValuePairs to Scene class
-			if (IsReadScenes(version))
+			if (version.IsGreaterEqual(2, 5))
 			{
 				return 2;
 			}
 			return 1;
 		}
+
+		/// <summary>
+		/// 2018.1 and greater
+		/// </summary>
+		public static bool HasConfigObjects(Version version) => version.IsGreaterEqual(2018);
+
+		/// <summary>
+		/// 2.5.0 and greater (NOTE: unknown version)
+		/// </summary>
+		private static bool HasScenes(Version version) => version.IsGreaterEqual(2, 5);
 
 		public void Initialize(IEnumerable<Scene> scenes)
 		{
@@ -55,43 +47,51 @@ namespace uTinyRipper.Classes
 			{
 				throw new ArgumentNullException(nameof(scenes));
 			}
-			m_scenes = scenes.ToArray();
+			Scenes = scenes.ToArray();
+			ConfigObjects = new Dictionary<string, PPtr<Object>>();
 		}
 
 		public override void Read(AssetReader reader)
 		{
 			base.Read(reader);
 
-			if (IsReadScenes(reader.Version))
+			if (HasScenes(reader.Version))
 			{
-				m_scenes = reader.ReadArray<Scene>();
+				Scenes = reader.ReadAssetArray<Scene>();
 			}
 			else
 			{
 				Tuple<bool, string>[] scenes = reader.ReadTupleBoolStringArray();
-				m_scenes = scenes.Select(t => new Scene(t.Item1, t.Item2)).ToArray();
+				Scenes = scenes.Select(t => new Scene(t.Item1, t.Item2)).ToArray();
 			}
-			if(IsReadConfigObjects(reader.Version))
+			if (HasConfigObjects(reader.Version))
 			{
-				m_configObjects = new Dictionary<string, PPtr<Object>>();
-				m_configObjects.Read(reader);
+				ConfigObjects = new Dictionary<string, PPtr<Object>>();
+				ConfigObjects.Read(reader);
 			}
 		}
 
 		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
 		{
 			YAMLMappingNode node = base.ExportYAMLRoot(container);
-			node.AddSerializedVersion(GetSerializedVersion(container.Version));
-			node.Add("m_Scenes", Scenes.ExportYAML(container));
-#warning TODO: 2018
-			//node.Add("m_configObjects", ConfigObjects.ExportYAML(container));
+			node.AddSerializedVersion(ToSerializedVersion(container.ExportVersion));
+			node.Add(ScenesName, Scenes.ExportYAML(container));
+			if (HasConfigObjects(container.ExportVersion))
+			{
+				node.Add(ConfigObjectsName, GetConfigObjects(container.Version).ExportYAML(container));
+			}
 			return node;
 		}
 
-		public IReadOnlyList<Scene> Scenes => m_scenes;
-		public IReadOnlyDictionary<string, PPtr<Object>> ConfigObjects => m_configObjects;
+		private IReadOnlyDictionary<string, PPtr<Object>> GetConfigObjects(Version version)
+		{
+			return HasConfigObjects(version) ? ConfigObjects : new Dictionary<string, PPtr<Object>>(0);
+		}
 
-		private Scene[] m_scenes;
-		private Dictionary<string, PPtr<Object>> m_configObjects;
+		public Scene[] Scenes { get; set; }
+		public Dictionary<string, PPtr<Object>> ConfigObjects { get; set; }
+
+		public const string ScenesName = "m_Scenes";
+		public const string ConfigObjectsName = "m_configObjects";
 	}
 }

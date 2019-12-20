@@ -1,22 +1,15 @@
 ﻿using SevenZip;
-using System;
 using System.Collections.Generic;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
-using uTinyRipper.SerializedFiles;
+using uTinyRipper.YAML;
+using uTinyRipper.Converters;
 
 namespace uTinyRipper.Classes.Materials
 {
 	public struct UnityPropertySheet : IAssetReadable, IYAMLExportable, IDependent
 	{
-		private static int GetSerializedVersion(Version version)
+		public static int ToSerializedVersion(Version version)
 		{
-			if (Config.IsExportTopmostSerializedVersion)
-			{
-				return 3;
-			}
-
-			if(version.IsGreaterEqual(2017, 3))
+			if (version.IsGreaterEqual(2017, 3))
 			{
 				return 3;
 			}
@@ -29,7 +22,7 @@ namespace uTinyRipper.Classes.Materials
 			foreach (FastPropertyName property in TexEnvs.Keys)
 			{
 				string hdrName = property.Value + HDRPostfixName;
-				if(CRC.Verify28DigestUTF8(hdrName, crc))
+				if (CRC.Verify28DigestUTF8(hdrName, crc))
 				{
 					return hdrName;
 				}
@@ -75,27 +68,28 @@ namespace uTinyRipper.Classes.Materials
 		public YAMLNode ExportYAML(IExportContainer container)
 		{
 			YAMLMappingNode node = new YAMLMappingNode();
-			node.AddSerializedVersion(GetSerializedVersion(container.Version));
-			node.Add("m_TexEnvs", m_texEnvs.ExportYAML(container));
-			node.Add("m_Floats", m_floats.ExportYAML(container));
-			node.Add("m_Colors", m_colors.ExportYAML(container));
+			node.AddSerializedVersion(ToSerializedVersion(container.ExportVersion));
+			node.Add(TexEnvsName, m_texEnvs.ExportYAML(container));
+			node.Add(FloatsName, m_floats.ExportYAML(container));
+			node.Add(ColorsName, m_colors.ExportYAML(container));
 			return node;
 		}
 
-		public IEnumerable<Object> FetchDependencies(ISerializedFile file, bool isLog = false)
+		public IEnumerable<PPtr<Object>> FetchDependencies(DependencyContext context)
 		{
-			foreach(UnityTexEnv env in m_texEnvs.Values)
+			foreach (PPtr<Object> asset in context.FetchDependencies(TexEnvs.Values, TexEnvsName))
 			{
-				foreach(Object asset in env.FetchDependencies(file, isLog))
-				{
-					yield return asset;
-				}
+				yield return asset;
 			}
 		}
 
 		public IReadOnlyDictionary<FastPropertyName, UnityTexEnv> TexEnvs => m_texEnvs;
 		public IReadOnlyDictionary<FastPropertyName, float> Floats => m_floats;
 		public IReadOnlyDictionary<FastPropertyName, ColorRGBAf> Colors => m_colors;
+
+		public const string TexEnvsName = "m_TexEnvs";
+		public const string FloatsName = "m_Floats";
+		public const string ColorsName = "m_Colors";
 
 		private const string HDRPostfixName = "_HDR";
 		private const string STPostfixName = "_ST";

@@ -1,6 +1,6 @@
 ﻿using SevenZip;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes.Materials
 {
@@ -9,10 +9,7 @@ namespace uTinyRipper.Classes.Materials
 		/// <summary>
 		/// 2017.3 and greater
 		/// </summary>
-		private static bool IsPlainString(Version version)
-		{
-			return version.IsGreaterEqual(2017, 3);
-		}
+		private static bool IsPlainString(Version version) => version.IsGreaterEqual(2017, 3);
 
 		public bool IsCRC28Match(uint crc)
 		{
@@ -26,17 +23,16 @@ namespace uTinyRipper.Classes.Materials
 
 		public YAMLNode ExportYAML(IExportContainer container)
 		{
-#warning TODO: serialized version acording to read version (current 2017.3.0f3)
-			//if(IsPlainString)
+			if (IsPlainString(container.ExportVersion))
 			{
 				return new YAMLScalarNode(Value);
 			}
-			/*else
+			else
 			{
 				YAMLMappingNode node = new YAMLMappingNode();
-				node.Add("name", Value);
+				node.Add(NameName, Value);
 				return node;
-			}*/
+			}
 		}
 
 		public override int GetHashCode()
@@ -53,6 +49,8 @@ namespace uTinyRipper.Classes.Materials
 			return Value;
 		}
 
-		public string Value { get; private set; }		
+		public string Value { get; set; }
+
+		public const string NameName = "name";
 	}
 }

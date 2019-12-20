@@ -1,17 +1,20 @@
-﻿using SevenZip;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.Exporter.YAML;
+using SevenZip;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes.Meshes
 {
 	/// <summary>
 	/// MeshBlendShapeChannel previously
 	/// </summary>
-	public struct BlendShapeChannel : IAssetReadable, IYAMLExportable
+	public struct BlendShapeChannel : IAsset
 	{
-		public bool IsCRCMatch(uint crc)
+		public BlendShapeChannel(string name, int frameIndex, int frameCount)
 		{
-			return CRC.VerifyDigestUTF8(Name, crc);
+			Name = name;
+			NameHash = CRC.CalculateDigestUTF8(Name);
+			FrameIndex = frameIndex;
+			FrameCount = frameCount;
 		}
 
 		public void Read(AssetReader reader)
@@ -22,19 +25,32 @@ namespace uTinyRipper.Classes.Meshes
 			FrameCount = reader.ReadInt32();
 		}
 
+		public void Write(AssetWriter writer)
+		{
+			writer.Write(Name);
+			writer.Write(NameHash);
+			writer.Write(FrameIndex);
+			writer.Write(FrameCount);
+		}
+
 		public YAMLNode ExportYAML(IExportContainer container)
 		{
 			YAMLMappingNode node = new YAMLMappingNode();
-			node.Add("name", Name);
-			node.Add("nameHash", NameHash);
-			node.Add("frameIndex", FrameIndex);
-			node.Add("frameCount", FrameCount);
+			node.Add(NameName, Name);
+			node.Add(NameHashName, NameHash);
+			node.Add(FrameIndexName, FrameIndex);
+			node.Add(FrameCountName, FrameCount);
 			return node;
 		}
 
-		public string Name { get; private set; }
-		public uint NameHash { get; private set; }
-		public int FrameIndex { get; private set; }
-		public int FrameCount { get; private set; }
+		public string Name { get; set; }
+		public uint NameHash { get; set; }
+		public int FrameIndex { get; set; }
+		public int FrameCount { get; set; }
+
+		public const string NameName = "name";
+		public const string NameHashName = "nameHash";
+		public const string FrameIndexName = "frameIndex";
+		public const string FrameCountName = "frameCount";
 	}
 }

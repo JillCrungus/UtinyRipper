@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.IO;
-using uTinyRipper.AssetExporters;
-using uTinyRipper.SerializedFiles;
+using uTinyRipper.Classes.Textures;
+using uTinyRipper.Converters;
+using uTinyRipper.YAML;
 
 namespace uTinyRipper.Classes
 {
@@ -17,41 +18,52 @@ namespace uTinyRipper.Classes
 			base.Read(reader);
 
 			IsLoop = reader.ReadBoolean();
-			reader.AlignStream(AlignType.Align4);
+			reader.AlignStream();
 
 			AudioClip.Read(reader);
-			m_movieData = reader.ReadByteArray();
-			reader.AlignStream(AlignType.Align4);
+			MovieData = reader.ReadByteArray();
+			reader.AlignStream();
 
-			ColorSpace = reader.ReadInt32();
+			ColorSpace = (ColorSpace)reader.ReadInt32();
 		}
 
 		public override void ExportBinary(IExportContainer container, Stream stream)
 		{
 			using (BinaryWriter writer = new BinaryWriter(stream))
 			{
-				writer.Write(m_movieData, 0, m_movieData.Length);
+				writer.Write(MovieData, 0, MovieData.Length);
 			}
 		}
 
-		public override IEnumerable<Object> FetchDependencies(ISerializedFile file, bool isLog = false)
+		public override IEnumerable<PPtr<Object>> FetchDependencies(DependencyContext context)
 		{
-			foreach(Object asset in base.FetchDependencies(file, isLog))
+			foreach (PPtr<Object> asset in base.FetchDependencies(context))
 			{
 				yield return asset;
 			}
 			
-			yield return AudioClip.FetchDependency(file, isLog, ToLogString, "m_AudioClip");
+			yield return context.FetchDependency(AudioClip, AudioClipName);
 		}
 
-		public override string ExportExtension => "ogv";
+		protected override YAMLMappingNode ExportYAMLRoot(IExportContainer container)
+		{
+			YAMLMappingNode node = base.ExportYAMLRoot(container);
+			node.Add(LoopName, IsLoop);
+			node.Add(AudioClipName, AudioClip.ExportYAML(container));
+			node.Add(MovieDataName, MovieData.ExportYAML());
+			node.Add(ColorSpaceName, (int)ColorSpace);
+			return node;
+		}
 
-		public bool IsLoop { get; private set; }
-		public IReadOnlyList<byte> MovieData => m_movieData;
-		public int ColorSpace { get; private set; }
+		public bool IsLoop { get; set; }
+		public byte[] MovieData { get; set; }
+		public ColorSpace ColorSpace { get; set; }
+
+		public const string LoopName = "m_Loop";
+		public const string AudioClipName = "m_AudioClip";
+		public const string MovieDataName = "m_MovieData";
+		public const string ColorSpaceName = "m_ColorSpace";
 
 		public PPtr<AudioClip> AudioClip;
-
-		private byte[] m_movieData;
 	}
 }
