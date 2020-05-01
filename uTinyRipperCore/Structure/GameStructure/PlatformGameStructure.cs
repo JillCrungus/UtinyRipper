@@ -108,13 +108,22 @@ namespace uTinyRipper
 
 		protected void CollectGameFiles(DirectoryInfo root, IDictionary<string, string> files)
 		{
+			CollectBundleGameFiles(root, files);
+			CollectSerializedGameFiles(root, files);
+		}
+
+		protected void CollectBundleGameFiles(DirectoryInfo root, IDictionary<string, string> files)
+		{
 			const string DataBundleName = DataName + AssetBundleExtension;
 			string dataBundlePath = Path.Combine(root.FullName, DataBundleName);
 			if (MultiFileStream.Exists(dataBundlePath))
 			{
 				AddAssetBundle(files, DataBundleName, dataBundlePath);
 			}
+		}
 
+		protected void CollectSerializedGameFiles(DirectoryInfo root, IDictionary<string, string> files)
+		{
 			string filePath = Path.Combine(root.FullName, GlobalGameManagerName);
 			if (MultiFileStream.Exists(filePath))
 			{
@@ -145,7 +154,7 @@ namespace uTinyRipper
 			DirectoryInfo streamingDirectory = new DirectoryInfo(streamingPath);
 			if (streamingDirectory.Exists)
 			{
-				CollectAssetBundlesRecursivly(root, files);
+				CollectAssetBundlesRecursivly(streamingDirectory, files);
 			}
 		}
 
@@ -254,6 +263,7 @@ namespace uTinyRipper
 		protected static readonly Regex s_levelTemplate = new Regex($@"^level(0|[1-9][0-9]*)({MultiFileStream.MultifileRegPostfix}0)?$", RegexOptions.Compiled);
 		protected static readonly Regex s_sharedAssetTemplate = new Regex(@"^sharedassets[0-9]+\.assets", RegexOptions.Compiled);
 
+		protected const string DataFolderName = "Data";
 		protected const string ManagedName = "Managed";
 		protected const string LibName = "lib";
 		protected const string ResourcesName = "Resources";

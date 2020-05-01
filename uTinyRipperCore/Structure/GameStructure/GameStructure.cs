@@ -123,7 +123,7 @@ namespace uTinyRipper
 
 		private void Dispose(bool _)
 		{
-			FileCollection.Dispose();
+			FileCollection?.Dispose();
 		}
 
 		private void Load(List<string> pathes, LayoutInfo layinfo)
@@ -133,6 +133,7 @@ namespace uTinyRipper
 			else if (CheckMac(pathes)) {}
 			else if (CheckAndroid(pathes)) {}
 			else if (CheckiOS(pathes)) {}
+			else if (CheckSwitch(pathes)) {}
 			else if (CheckWebGL(pathes)) {}
 			else if (CheckWebPlayer(pathes)) {}
 			CheckMixed(pathes);
@@ -149,14 +150,17 @@ namespace uTinyRipper
 				}
 				processor.AddDependencySchemes(RequestDependency);
 
-				layinfo = layinfo ?? processor.GetLayoutInfo();
-				AssetLayout layout = new AssetLayout(layinfo);
-				GameCollection.Parameters pars = new GameCollection.Parameters(layout);
-				pars.ScriptBackend = GetScriptingBackend();
-				pars.RequestAssemblyCallback = OnRequestAssembly;
-				pars.RequestResourceCallback = OnRequestResource;
-				FileCollection = new GameCollection(pars);
-				processor.ProcessSchemes(FileCollection);
+				if (processor.IsValid)
+				{
+					layinfo = layinfo ?? processor.GetLayoutInfo();
+					AssetLayout layout = new AssetLayout(layinfo);
+					GameCollection.Parameters pars = new GameCollection.Parameters(layout);
+					pars.ScriptBackend = GetScriptingBackend();
+					pars.RequestAssemblyCallback = OnRequestAssembly;
+					pars.RequestResourceCallback = OnRequestResource;
+					FileCollection = new GameCollection(pars);
+					processor.ProcessSchemes(FileCollection);
+				}
 			}
 		}
 
@@ -266,13 +270,28 @@ namespace uTinyRipper
 			return false;
 		}
 
+		private bool CheckSwitch(List<string> pathes)
+		{
+			foreach (string path in pathes)
+			{
+				if (SwitchGameStructure.IsSwitchStructure(path))
+				{
+					PlatformStructure = new SwitchGameStructure(path);
+					pathes.Remove(path);
+					Logger.Log(LogType.Info, LogCategory.Import, $"Switch game structure has been found at '{path}'");
+					return true;
+				}
+			}
+			return false;
+		}
+
 		private bool CheckWebGL(List<string> pathes)
 		{
 			foreach (string path in pathes)
 			{
-				if (WebGLStructure.IsWebGLStructure(path))
+				if (WebGLGameStructure.IsWebGLStructure(path))
 				{
-					PlatformStructure = new WebGLStructure(path);
+					PlatformStructure = new WebGLGameStructure(path);
 					pathes.Remove(path);
 					Logger.Log(LogType.Info, LogCategory.Import, $"WebPlayer game structure has been found at '{path}'");
 					return true;
@@ -285,9 +304,9 @@ namespace uTinyRipper
 		{
 			foreach (string path in pathes)
 			{
-				if (WebPlayerStructure.IsWebPlayerStructure(path))
+				if (WebPlayerGameStructure.IsWebPlayerStructure(path))
 				{
-					PlatformStructure = new WebPlayerStructure(path);
+					PlatformStructure = new WebPlayerGameStructure(path);
 					pathes.Remove(path);
 					Logger.Log(LogType.Info, LogCategory.Import, $"WebPlayer game structure has been found at '{path}'");
 					return true;
@@ -358,6 +377,7 @@ namespace uTinyRipper
 				}
 			}
 		}
+		public bool IsValid => FileCollection != null;
 
 		public GameCollection FileCollection { get; private set; }
 		public PlatformGameStructure PlatformStructure { get; private set; }

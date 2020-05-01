@@ -9,10 +9,12 @@ namespace DXShaderRestorer
 		{
 			switch (_this)
 			{
+				case ShaderGpuProgramType.DX10Level9Pixel:
 				case ShaderGpuProgramType.DX11PixelSM40:
 				case ShaderGpuProgramType.DX11PixelSM50:
 					return DXProgramType.PixelShader;
 
+				case ShaderGpuProgramType.DX10Level9Vertex:
 				case ShaderGpuProgramType.DX11VertexSM40:
 				case ShaderGpuProgramType.DX11VertexSM50:
 					return DXProgramType.VertexShader;
@@ -36,6 +38,8 @@ namespace DXShaderRestorer
 		{
 			switch (_this)
 			{
+				case ShaderGpuProgramType.DX10Level9Vertex:
+				case ShaderGpuProgramType.DX10Level9Pixel:
 				case ShaderGpuProgramType.DX11PixelSM40:
 				case ShaderGpuProgramType.DX11VertexSM40:
 				case ShaderGpuProgramType.DX11GeometrySM40:
@@ -47,6 +51,9 @@ namespace DXShaderRestorer
 				case ShaderGpuProgramType.DX11HullSM50:
 				case ShaderGpuProgramType.DX11DomainSM50:
 					return 5;
+
+				case ShaderGpuProgramType.RayTracing:
+					return 6;
 
 				default:
 					throw new Exception($"Unexpected program type {_this}");

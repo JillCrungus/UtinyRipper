@@ -1,11 +1,11 @@
 ﻿using uTinyRipper.YAML;
 using uTinyRipper.SerializedFiles;
 using uTinyRipper.Converters;
-using System.Text;
+using uTinyRipper.BundleFiles;
 
 namespace uTinyRipper.Classes.Misc
 {
-	public struct Hash128 : IAsset, ISerializedReadable, ISerializedWritable
+	public struct Hash128 : IAsset, ISerializedReadable, ISerializedWritable, IBundleReadable
 	{
 		public Hash128(uint v) :
 			this(v, 0, 0, 0)
@@ -29,12 +29,9 @@ namespace uTinyRipper.Classes.Misc
 			return 1;
 		}
 
-		public void Read(EndianReader reader)
+		public void Read(BundleReader reader)
 		{
-			Data0 = reader.ReadUInt32();
-			Data1 = reader.ReadUInt32();
-			Data2 = reader.ReadUInt32();
-			Data3 = reader.ReadUInt32();
+			Read((EndianReader)reader);
 		}
 
 		public void Read(SerializedReader reader)
@@ -47,12 +44,12 @@ namespace uTinyRipper.Classes.Misc
 			Read((EndianReader)reader);
 		}
 
-		public void Write(EndianWriter writer)
+		public void Read(EndianReader reader)
 		{
-			writer.Write(Data0);
-			writer.Write(Data1);
-			writer.Write(Data2);
-			writer.Write(Data3);
+			Data0 = reader.ReadUInt32();
+			Data1 = reader.ReadUInt32();
+			Data2 = reader.ReadUInt32();
+			Data3 = reader.ReadUInt32();
 		}
 
 		public void Write(SerializedWriter writer)
@@ -63,6 +60,14 @@ namespace uTinyRipper.Classes.Misc
 		public void Write(AssetWriter writer)
 		{
 			Write((EndianWriter)writer);
+		}
+
+		public void Write(EndianWriter writer)
+		{
+			writer.Write(Data0);
+			writer.Write(Data1);
+			writer.Write(Data2);
+			writer.Write(Data3);
 		}
 
 		public YAMLNode ExportYAML(IExportContainer container)
@@ -110,7 +115,7 @@ namespace uTinyRipper.Classes.Misc
 
 		public override string ToString()
 		{
-			GUID guid = new GUID(Data0, Data1, Data2, Data3);
+			UnityGUID guid = new UnityGUID(Data0, Data1, Data2, Data3);
 			return guid.ToString();
 		}
 

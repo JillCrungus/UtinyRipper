@@ -5,7 +5,8 @@ namespace uTinyRipper
 {
 	public sealed class WebFile : FileList
 	{
-		internal WebFile(WebFileScheme scheme)
+		internal WebFile(WebFileScheme scheme) :
+			base(scheme.NameOrigin)
 		{
 			Header = scheme.Header;
 			Metadata = scheme.Metadata;

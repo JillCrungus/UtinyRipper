@@ -4,20 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows;
-using System.Windows.Documents;
-using System.Windows.Media;
-using System.Windows.Navigation;
 using uTinyRipper;
-using uTinyRipper.Classes;
 using uTinyRipper.Converters;
-using uTinyRipperGUI.Exporters;
-
-#if VIRTUAL
-using System.Windows.Automation.Peers;
-using System.Windows.Automation.Provider;
-#elif !DEBUG
 using uTinyRipper.SerializedFiles;
-#endif
+using uTinyRipperGUI.Exporters;
+using uTinyRipperGUI.Properties;
+using uTinyRipperGUI.Windows;
 
 using Object = uTinyRipper.Classes.Object;
 using Version = uTinyRipper.Version;
@@ -38,140 +30,22 @@ namespace uTinyRipperGUI
 		{
 			InitializeComponent();
 
-			Logger.Instance = new OutputLogger(OutputTextBox);
-
 			m_initialIntroText = IntroText.Text;
-			m_initialStatusText = StatusText.Text;
-			m_outputContentStart = new TextRange(OutputTextBox.Document.Blocks.FirstBlock.ElementEnd, OutputTextBox.Document.Blocks.FirstBlock.ElementEnd);
+			m_initialStatusText = (string)StatusText.Content;
 
 			string[] args = Environment.GetCommandLineArgs();
 			string[] files = args.Skip(1).ToArray();
 			ProcessInputFiles(files);
 		}
 
-		// =====================================================
-		// Callbacks
-		// =====================================================
-
-		private void OnDataDroped(object sender, DragEventArgs e)
+		public static void OpenExplorerSelectFile(string path)
 		{
-			if(e.Data.GetDataPresent(DataFormats.FileDrop))
-			{
-				string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-				
-				e.Handled = ProcessInputFiles(files);
-			}
-		}
-		
-		private void OnExportButtonClicked(object sender, RoutedEventArgs e)
-		{
-			while(true)
-			{
-				Ookii.Dialogs.VistaFolderBrowserDialog folderDialog = new Ookii.Dialogs.VistaFolderBrowserDialog();
-				folderDialog.ShowNewFolderButton = true;
-			    folderDialog.UseDescriptionForTitle = true;
-				folderDialog.Description = $"Select export folder. New folder '{GameStructure.Name}' will be created inside selected one";
-#if VIRTUAL
-				System.Windows.Forms.DialogResult result = System.Windows.Forms.DialogResult.OK;
-#else
-				System.Windows.Forms.DialogResult result = folderDialog.ShowDialog();
-#endif
-				if (result == System.Windows.Forms.DialogResult.OK)
-				{
-					string path = Path.Combine(folderDialog.SelectedPath, GameStructure.Name);
-					if (Directory.Exists(path))
-					{
-						if (Directory.EnumerateFiles(path).Any())
-						{
-							MessageBoxResult mbresult = MessageBox.Show(this, "There are files inside selected folder. They will be deleted.",
-								"Are you sure?", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
-							if (mbresult == MessageBoxResult.Cancel)
-							{
-								continue;
-							}
-						}
-					}
+			string argument = $"/e, /select, \"{path}\"";
 
-					IntroText.Text = "Exporting assets...";
-					ExportButton.Visibility = Visibility.Hidden;
-
-					ThreadPool.QueueUserWorkItem(new WaitCallback(ExportFiles), path);
-				}
-				break;
-			}
-		}
-
-		private void OnPostExportButtonClicked(object sender, RoutedEventArgs e)
-		{
-			OpenExplorerSelectFile(m_exportPath);
-		}
-
-		private void OnResetButtonClicked(object sender, RoutedEventArgs e)
-		{
-			IntroText.Text = m_initialIntroText;
-			StatusText.Text = m_initialStatusText;
-			MainGrid.AllowDrop = true;
-			PostExportButton.Visibility = Visibility.Hidden;
-			ResetButton.Visibility = Visibility.Hidden;
-			m_processingFiles = null;
-
-			GameStructure.Dispose();
-		}
-
-		private void OnOutputTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
-		{
-			if (OutputTextBox.VerticalOffset == 0.0f && OutputTextBox.ViewportHeight >= OutputTextBox.ExtentHeight ||
-				OutputTextBox.VerticalOffset + OutputTextBox.ViewportHeight == OutputTextBox.ExtentHeight)
-			{
-				OutputTextBox.ScrollToEnd();
-			}
-		}
-
-		private void OnHyperlinkClicked(object sender, RequestNavigateEventArgs e)
-		{
-			if(e.Uri.IsFile)
-			{
-				OpenExplorerSelectFile(e.Uri.ToString());
-			}
-			else
-			{
-				Process.Start("explorer.exe", e.Uri.ToString());
-			}
-		}
-
-		private void OnClearOutputTextClicked(object sender, RoutedEventArgs e)
-		{
-			ClearConsole();
-		}
-
-		// =====================================================
-		// Visualization
-		// =====================================================
-
-		private void AddHyperlinkToConsole(string message, string linkName, string linkURL)
-		{
-			TextRange rangeOfText = new TextRange(OutputTextBox.Document.ContentEnd, OutputTextBox.Document.ContentEnd);
-			rangeOfText.Text = message;
-			rangeOfText.ApplyPropertyValue(TextElement.ForegroundProperty, Brushes.White);
-			rangeOfText.ApplyPropertyValue(TextElement.BackgroundProperty, Brushes.Transparent);
-
-			rangeOfText = new TextRange(OutputTextBox.Document.ContentEnd, OutputTextBox.Document.ContentEnd);
-			rangeOfText.Text = linkName;
-			rangeOfText.ApplyPropertyValue(TextElement.ForegroundProperty, Brushes.Blue);
-
-			Hyperlink link = new Hyperlink(rangeOfText.Start, rangeOfText.End);
-			link.IsEnabled = true;
-			link.NavigateUri = new Uri(linkURL);
-			link.RequestNavigate += OnHyperlinkClicked;
-
-			rangeOfText = new TextRange(OutputTextBox.Document.ContentEnd, OutputTextBox.Document.ContentEnd);
-			rangeOfText.Text = "\r";
-		}
-
-		private void ClearConsole()
-		{
-			TextRange range = new TextRange(m_outputContentStart.Start, OutputTextBox.Document.ContentEnd);
-			range.Text = string.Empty;
+			ProcessStartInfo info = new ProcessStartInfo();
+			info.FileName = "explorer";
+			info.Arguments = argument;
+			Process.Start(info);
 		}
 
 		// =====================================================
@@ -180,7 +54,7 @@ namespace uTinyRipperGUI
 
 		private bool ProcessInputFiles(string[] files)
 		{
-			if(files.Length == 0)
+			if (files.Length == 0)
 			{
 				return false;
 			}
@@ -213,53 +87,57 @@ namespace uTinyRipperGUI
 		{
 			string[] files = (string[])data;
 
+			OnImportStarted();
 #if !DEBUG
 			try
 #endif
 			{
-				OnImportStarted();
 				GameStructure = GameStructure.Load(files);
-				Validate();
-				OnImportFinished();
 			}
 #if !DEBUG
-			catch(SerializedFileException ex)
+			catch (SerializedFileException ex)
 			{
-				Dispatcher.Invoke(() =>
-				{
-					Logger.Log(LogType.Error, LogCategory.Import, ex.ToString());
-					AddHyperlinkToConsole("Go to: ", "Create issue", IssuePage);
-					AddHyperlinkToConsole("Attach file: ", ex.FileName, ex.FilePath);
-					MessageBox.Show(this, $"Please, create an issue on github page {IssuePage} with attached file '{ex.FilePath}'.",
-						"An error during loading process has occuered!", MessageBoxButton.OK, MessageBoxImage.Error);
-				});
+				ReportCrash(ex);
 				return;
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
-				Dispatcher.Invoke(() =>
-				{
-					Logger.Log(LogType.Error, LogCategory.Import, ex.ToString());
-					AddHyperlinkToConsole("Go to: ", "Create issue", IssuePage);
-					MessageBox.Show(this, $"Please, create an issue on github page {IssuePage} with attached file that cause this error.",
-						"An error during loading process has occuered!", MessageBoxButton.OK, MessageBoxImage.Error);
-				});
+				ReportCrash(ex);
 				return;
 			}
 #endif
 
-			Dispatcher.Invoke(() =>
-				{
-					IntroText.Text = "Files has been loaded";
-					ExportButton.Visibility = Visibility.Visible;
+			if (GameStructure.IsValid)
+			{
+				Validate();
+			}
+			OnImportFinished();
+
+			if (GameStructure.IsValid)
+			{
+				Dispatcher.Invoke(() =>
+					{
+						IntroText.Text = "Files has been loaded";
+						ExportButton.Visibility = Visibility.Visible;
+
+						Fileview.AddItem(GameStructure.FileCollection);
+						Fileview.Refresh();
 
 #if VIRTUAL
-					ButtonAutomationPeer peer = new ButtonAutomationPeer(ExportButton);
-					IInvokeProvider invokeProv = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
-					invokeProv.Invoke();
+						OnExportButtonClicked(null, null);
 #endif
-				}
-			);
+					}
+				);
+			}
+			else
+			{
+				Dispatcher.Invoke(() =>
+					{
+						OnResetButtonClicked(null, null);
+						Logger.Log(LogType.Warning, LogCategory.Import, "Game files wasn't found");
+					}
+				);
+			}
 		}
 
 		private void ExportFiles(object data)
@@ -295,25 +173,12 @@ namespace uTinyRipperGUI
 #if !DEBUG
 			catch (SerializedFileException ex)
 			{
-				Logger.Log(LogType.Error, LogCategory.Import, ex.ToString());
-				Dispatcher.Invoke(() =>
-				{
-					AddHyperlinkToConsole("Go to: ", "Create issue", IssuePage);
-					AddHyperlinkToConsole("Attach file: ", ex.FileName, ex.FilePath);
-					MessageBox.Show(this, $"Please, create an issue on github page {IssuePage} with attached file '{ex.FilePath}'.",
-						"An error during export process has occuered!", MessageBoxButton.OK, MessageBoxImage.Error);
-				});
+				ReportCrash(ex);
 				return;
 			}
 			catch (Exception ex)
 			{
-				Logger.Log(LogType.Error, LogCategory.Import, ex.ToString());
-				Dispatcher.Invoke(() =>
-				{
-					AddHyperlinkToConsole("Go to: ", "Create issue", IssuePage);
-					MessageBox.Show(this, $"Please, create an issue on github page {IssuePage} with attached file that cause this error.",
-						"An error during loading process has occuered!", MessageBoxButton.OK, MessageBoxImage.Error);
-				});
+				ReportCrash(ex);
 				return;
 			}
 #endif
@@ -345,7 +210,7 @@ namespace uTinyRipperGUI
 		private void PrepareExportDirectory(string path)
 		{
 			string directory = Directory.GetCurrentDirectory();
-			if(!PermissionValidator.CheckAccess(directory))
+			if (!PermissionValidator.CheckAccess(directory))
 			{
 				string arguments = string.Join(" ", m_processingFiles.Select(t => $"\"{t}\""));
 				PermissionValidator.RestartAsAdministrator(arguments);
@@ -357,50 +222,216 @@ namespace uTinyRipperGUI
 			}
 		}
 
-		private static void OpenExplorerSelectFile(string path)
+		private void ReportCrash(SerializedFileException ex)
 		{
-			string argument = $"/e, /select, \"{path}\"";
-
-			ProcessStartInfo info = new ProcessStartInfo();
-			info.FileName = "explorer";
-			info.Arguments = argument;
-			Process.Start(info);
+			ReportCrash(ex.ToString());
+			Dispatcher.InvokeAsync(() =>
+			{
+				BugReportWindow window = new BugReportWindow();
+				window.Owner = this;
+				window.Fill(ex);
+				window.ShowDialog();
+			});
 		}
+
+		private void ReportCrash(Exception ex)
+		{
+			ReportCrash(ex.ToString());
+			Dispatcher.InvokeAsync(() =>
+			{
+				BugReportWindow window = new BugReportWindow();
+				window.Owner = this;
+				window.Fill(ex);
+				window.ShowDialog();
+			});
+		}
+
+		private void ReportCrash(string error)
+		{
+			Dispatcher.Invoke(() =>
+			{
+				StatusText.Content = "crashed";
+				Logger.Log(LogType.Error, LogCategory.Import, error);
+			});
+		}
+
+		private void OpenGameFolder(string plaformName)
+		{
+			using (Ookii.Dialogs.VistaFolderBrowserDialog folderDialog = new Ookii.Dialogs.VistaFolderBrowserDialog())
+			{
+				folderDialog.Description = $"Select {plaformName} game folder";
+				folderDialog.SelectedPath = Settings.Default.ImportFolderPath;
+				folderDialog.UseDescriptionForTitle = true;
+				System.Windows.Forms.DialogResult result = folderDialog.ShowDialog();
+				if (result == System.Windows.Forms.DialogResult.OK)
+				{
+
+				}
+			}
+		}
+
+		// =====================================================
+		// Callbacks
+		// =====================================================
 
 		private void OnImportStarted()
 		{
-			Dispatcher.Invoke(() => StatusText.Text = "Status: importing...");
+			Dispatcher.Invoke(() => StatusText.Content = "importing...");
 		}
 
 		private void OnImportFinished()
 		{
-			Dispatcher.Invoke(() => StatusText.Text = "Status: import finished");
+			Dispatcher.Invoke(() => StatusText.Content = "import finished");
 		}
 
 		private void OnExportPreparationStarted()
 		{
-			Dispatcher.Invoke(() => StatusText.Text = "Status: analyzing assets...");
+			Dispatcher.Invoke(() => StatusText.Content = "analyzing assets...");
 		}
 
 		private void OnExportPreparationFinished()
 		{
-			Dispatcher.Invoke(() => StatusText.Text = "Status: analysis finished");
+			Dispatcher.Invoke(() => StatusText.Content = "analysis finished");
 		}
 
 		private void OnExportStarted()
 		{
-			Dispatcher.Invoke(() => StatusText.Text = "Status: exporting...");
+			Dispatcher.Invoke(() =>
+			{
+				StatusText.Content = "exporting...";
+				Progress.Value = 0.0;
+				Progress.Visibility = Visibility.Visible;
+			});
 		}
 
 		private void OnExportProgressUpdated(int index, int count)
 		{
-			Dispatcher.InvokeAsync(() => StatusText.Text = $"Status: exporting... {index}/{count} - {((float)index / (float)count) * 100.0f:0.00}%");
+			Dispatcher.InvokeAsync(() =>
+			{
+				double progress = ((double)index / count) * 100.0;
+				StatusText.Content = $"exporting... {index}/{count} - {progress:0.00}%";
+				Progress.Value = progress;
+			});
 		}
 
 		private void OnExportFinished()
 		{
-			Dispatcher.InvokeAsync(() => StatusText.Text = "Status: export finished");
+			Dispatcher.InvokeAsync(() =>
+			{
+				StatusText.Content = "export finished";
+				Progress.Visibility = Visibility.Hidden;
+			});
 		}
+
+		// =====================================================
+		// Form callbacks
+		// =====================================================
+
+		private void OnOpenAndroidClicked(object sender, RoutedEventArgs e)
+		{
+			OpenGameFolder("Android");
+		}
+
+		private void OnResetButtonClicked(object sender, RoutedEventArgs e)
+		{
+			Fileview.Clear();
+			IntroText.Text = m_initialIntroText;
+			StatusText.Content = m_initialStatusText;
+			MainGrid.AllowDrop = true;
+			PostExportButton.Visibility = Visibility.Hidden;
+			ResetButton.Visibility = Visibility.Hidden;
+			OutputView.Clear();
+			m_processingFiles = null;
+
+			GameStructure.Dispose();
+		}
+
+		private void OnExitButtonClicked(object sender, RoutedEventArgs e)
+		{
+			Close();
+		}
+
+		private void OnCheckForUpdateButtonClicked(object sender, RoutedEventArgs e)
+		{
+			Process.Start("explorer.exe", ArchivePage);
+		}
+
+		private void OnReportBugClicked(object sender, RoutedEventArgs e)
+		{
+			Process.Start("explorer.exe", MainWindow.IssuePage);
+		}
+
+		private void OnAboutButtonClicked(object sender, RoutedEventArgs e)
+		{
+			Process.Start("explorer.exe", ReadMePage);
+		}
+
+		private void OnDataDroped(object sender, DragEventArgs e)
+		{
+			if (e.Data.GetDataPresent(DataFormats.FileDrop))
+			{
+				string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+				e.Handled = ProcessInputFiles(files);
+			}
+		}
+
+		private void OnExportButtonClicked(object sender, RoutedEventArgs e)
+		{
+			while (true)
+			{
+				using (Ookii.Dialogs.VistaFolderBrowserDialog folderDialog = new Ookii.Dialogs.VistaFolderBrowserDialog())
+				{
+					folderDialog.ShowNewFolderButton = true;
+					folderDialog.Description = $"Select export folder. New folder '{GameStructure.Name}' will be created inside selected one";
+					folderDialog.SelectedPath = Settings.Default.ExportFolderPath;
+					folderDialog.UseDescriptionForTitle = true;
+#if VIRTUAL
+					System.Windows.Forms.DialogResult result = System.Windows.Forms.DialogResult.OK;
+#else
+					System.Windows.Forms.DialogResult result = folderDialog.ShowDialog();
+#endif
+					if (result == System.Windows.Forms.DialogResult.OK)
+					{
+						string path = Path.Combine(folderDialog.SelectedPath, GameStructure.Name);
+						if (File.Exists(path))
+						{
+							MessageBox.Show(this, "Unable to export assets into selected folder. Choose another one.",
+									"Invalid folder", MessageBoxButton.OK, MessageBoxImage.Warning);
+							continue;
+						}
+						if (Directory.Exists(path))
+						{
+							if (Directory.EnumerateFiles(path).Any())
+							{
+								MessageBoxResult mbresult = MessageBox.Show(this, "There are files inside selected folder. They will be deleted.",
+									"Are you sure?", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+								if (mbresult == MessageBoxResult.Cancel)
+								{
+									continue;
+								}
+							}
+						}
+
+						IntroText.Text = "Exporting assets...";
+						ExportButton.Visibility = Visibility.Hidden;
+						Settings.Default.ExportFolderPath = folderDialog.SelectedPath;
+						Settings.Default.Save();
+
+						ThreadPool.QueueUserWorkItem(new WaitCallback(ExportFiles), path);
+					}
+				}
+				break;
+			}
+		}
+
+		private void OnPostExportButtonClicked(object sender, RoutedEventArgs e)
+		{
+			OpenExplorerSelectFile(m_exportPath);
+		}
+
+		// =====================================================
+		// Properties
+		// =====================================================
 
 		private GameStructure GameStructure
 		{
@@ -411,7 +442,7 @@ namespace uTinyRipperGUI
 				{
 					return;
 				}
-				if (m_gameStructure != null)
+				if (m_gameStructure != null && m_gameStructure.IsValid)
 				{
 					m_gameStructure.FileCollection.Exporter.EventExportFinished -= OnExportFinished;
 					m_gameStructure.FileCollection.Exporter.EventExportProgressUpdated -= OnExportProgressUpdated;
@@ -420,7 +451,7 @@ namespace uTinyRipperGUI
 					m_gameStructure.FileCollection.Exporter.EventExportPreparationStarted -= OnExportPreparationStarted;
 				}
 				m_gameStructure = value;
-				if (value != null)
+				if (value != null && value.IsValid)
 				{
 					value.FileCollection.Exporter.EventExportPreparationStarted += OnExportPreparationStarted;
 					value.FileCollection.Exporter.EventExportPreparationFinished += OnExportPreparationFinished;
@@ -431,12 +462,14 @@ namespace uTinyRipperGUI
 			}
 		}
 
-		private const string IssuePage = "https://github.com/mafaca/UtinyRipper/issues";
+		public const string RepositoryPage = "https://github.com/mafaca/UtinyRipper/";
+		public const string ReadMePage = MainWindow.RepositoryPage + "blob/master/README.md";
+		public const string IssuePage = MainWindow.RepositoryPage + "issues/new";
+		public const string ArchivePage = "https://sourceforge.net/projects/utinyripper/files/";
 
 		private GameStructure m_gameStructure;
-		private string m_initialIntroText;
-		private string m_initialStatusText;
-		private TextRange m_outputContentStart;
+		private readonly string m_initialIntroText;
+		private readonly string m_initialStatusText;
 		private string m_exportPath;
 		private string[] m_processingFiles;
 	}

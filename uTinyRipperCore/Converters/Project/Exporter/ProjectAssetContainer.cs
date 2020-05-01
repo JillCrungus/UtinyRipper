@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using uTinyRipper.Classes;
 using uTinyRipper.Classes.Misc;
 using uTinyRipper.Layout;
@@ -12,10 +13,11 @@ namespace uTinyRipper.Converters
 {
 	public class ProjectAssetContainer : IExportContainer
 	{
-		public ProjectAssetContainer(ProjectExporter exporter, VirtualSerializedFile file, IEnumerable<Object> assets,
+		public ProjectAssetContainer(ProjectExporter exporter, ExportOptions options, VirtualSerializedFile file, IEnumerable<Object> assets,
 			IReadOnlyList<IExportCollection> collections)
 		{
 			m_exporter = exporter ?? throw new ArgumentNullException(nameof(exporter));
+			m_options = options ?? throw new ArgumentNullException(nameof(options));
 			VirtualFile = file ?? throw new ArgumentNullException(nameof(file));
 			ExportLayout = file.Layout;
 
@@ -33,6 +35,10 @@ namespace uTinyRipper.Converters
 
 					case ClassIDType.ResourceManager:
 						AddResources((ResourceManager)asset);
+						break;
+
+					case ClassIDType.AssetBundle:
+						AddBundleAssets((AssetBundle)asset);
 						break;
 				}
 			}
@@ -54,18 +60,18 @@ namespace uTinyRipper.Converters
 		}
 
 #warning TODO: get rid of IEnumerable. pass only main asset (issues: prefab, texture with sprites, animatorController)
-		public bool TryGetResourcePathFromAssets(IEnumerable<Object> assets, out Object selectedAsset, out string resourcePath)
+		public bool TryGetAssetPathFromAssets(IEnumerable<Object> assets, out Object selectedAsset, out string assetPath)
 		{
 			selectedAsset = null;
-			resourcePath = string.Empty;
-			if (m_resources.Count > 0)
+			assetPath = string.Empty;
+			if (m_pathAssets.Count > 0)
 			{
 				foreach (Object asset in assets)
 				{
-					if (m_resources.TryGetValue(asset, out string path))
+					if (m_pathAssets.TryGetValue(asset, out ProjectAssetPath projectPath))
 					{
 						selectedAsset = asset;
-						resourcePath = ResourceManager.ResourceToExportPath(asset, path);
+						assetPath = projectPath.SubstituteExportPath(asset);
 						return true;
 					}
 				}
@@ -141,10 +147,10 @@ namespace uTinyRipper.Converters
 			}
 
 			long exportID = ExportCollection.GetMainExportID(asset);
-			return new MetaPtr(exportID, GUID.MissingReference, AssetType.Meta);
+			return new MetaPtr(exportID, UnityGUID.MissingReference, AssetType.Meta);
 		}
 
-		public GUID SceneNameToGUID(string name)
+		public UnityGUID SceneNameToGUID(string name)
 		{
 			if (m_buildSettings == null)
 			{
@@ -220,7 +226,14 @@ namespace uTinyRipper.Converters
 				int tagIndex = tagID - 20000;
 				if (tagIndex < m_tagManager.Tags.Length)
 				{
-					return m_tagManager.Tags[tagIndex];
+					if (tagIndex >= 0)
+					{
+						return m_tagManager.Tags[tagIndex];
+					}
+					else if (!TagManager.IsBrokenCustomTags(m_tagManager.File.Version))
+					{
+						throw new Exception($"Unknown default tag {tagID}");
+					}
 				}
 			}
 			return $"unknown_{tagID}";
@@ -267,8 +280,68 @@ namespace uTinyRipper.Converters
 				{
 					continue;
 				}
-				m_resources.Add(asset, kvp.Key);
+
+				string resourcePath = kvp.Key;
+				if (m_pathAssets.TryGetValue(asset, out ProjectAssetPath projectPath))
+				{
+					// for paths like "Resources/inner/resources/extra/file" engine creates 2 resource entries
+					// "inner/resources/extra/file" and "extra/file"
+					if (projectPath.AssetPath.Length >= resourcePath.Length)
+					{
+						continue;
+					}
+				}
+				m_pathAssets[asset] = new ProjectAssetPath(ResourceFullPath, resourcePath);
 			}
+		}
+
+		private void AddBundleAssets(AssetBundle bundle)
+		{
+			string bundleName = AssetBundle.HasAssetBundleName(bundle.File.Version) ? bundle.AssetBundleName : bundle.File.Name;
+			string bundleDirectory = bundleName + ObjectUtils.DirectorySeparator;
+			string directory = Path.Combine(AssetBundleFullPath, bundleName);
+			foreach (KeyValuePair<string, Classes.AssetBundles.AssetInfo> kvp in bundle.Container)
+			{
+				// skip shared bundle assets, because we need to export them in their bundle directory
+				if (kvp.Value.Asset.FileIndex != 0)
+				{
+					continue;
+				}
+				Object asset = kvp.Value.Asset.FindAsset(bundle.File);
+				if (asset == null)
+				{
+					continue;
+				}
+
+				string assetPath = kvp.Key;
+				if (AssetBundle.HasPathExtension(bundle.File.Version))
+				{
+					// custom names may not has extension
+					int extensionIndex = assetPath.LastIndexOf('.');
+					if (extensionIndex != -1)
+					{
+						assetPath = assetPath.Substring(0, extensionIndex);
+					}
+				}
+
+				if (m_options.KeepAssetBundleContentPath)
+				{
+					m_pathAssets.Add(asset, new ProjectAssetPath(string.Empty, assetPath));
+				}
+				else
+				{
+					if (assetPath.StartsWith(AssetsDirectory, StringComparison.OrdinalIgnoreCase))
+					{
+						assetPath = assetPath.Substring(AssetsDirectory.Length);
+					}
+					if (assetPath.StartsWith(bundleDirectory, StringComparison.OrdinalIgnoreCase))
+					{
+						assetPath = assetPath.Substring(bundleDirectory.Length);
+					}
+					m_pathAssets.Add(asset, new ProjectAssetPath(directory, assetPath));
+				}
+			}
+#warning TODO: asset bundle may contains more assets than listed in Container. need to export them in AssetBundleFullPath directory if KeepAssetBundleContentPath is false
 		}
 
 		public IExportCollection CurrentCollection { get; set; }
@@ -285,9 +358,16 @@ namespace uTinyRipper.Converters
 		public TransferInstructionFlags ExportFlags => ExportLayout.Info.Flags | CurrentCollection.Flags;
 		public IReadOnlyList<FileIdentifier> Dependencies => File.Dependencies;
 
+		private const string ResourceKeyword = "Resources";
+		private const string AssetBundleKeyword = "AssetBundles";
+		private const string AssetsDirectory = Object.AssetsKeyword + ObjectUtils.DirectorySeparator;
+		private const string ResourceFullPath = AssetsDirectory + ResourceKeyword;
+		private const string AssetBundleFullPath = AssetsDirectory + AssetBundleKeyword;
+
 		private readonly ProjectExporter m_exporter;
+		private readonly ExportOptions m_options;
 		private readonly Dictionary<AssetInfo, IExportCollection> m_assetCollections = new Dictionary<AssetInfo, IExportCollection>();
-		private readonly Dictionary<Object, string> m_resources = new Dictionary<Object, string>();
+		private readonly Dictionary<Object, ProjectAssetPath> m_pathAssets = new Dictionary<Object, ProjectAssetPath>();
 
 		private readonly BuildSettings m_buildSettings;
 		private readonly TagManager m_tagManager;

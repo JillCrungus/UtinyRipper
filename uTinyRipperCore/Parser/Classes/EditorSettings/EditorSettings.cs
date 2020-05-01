@@ -32,6 +32,12 @@ namespace uTinyRipper.Classes
 			EnableTextureStreamingInEditMode = true;
 			EnableTextureStreamingInPlayMode = true;
 			AsyncShaderCompilation = true;
+			AssetPipelineMode = AssetPipelineMode.Version1;
+			CacheServerMode = CacheServerMode.AsPreferences;
+			CacheServerEndpoint = string.Empty;
+			CacheServerNamespacePrefix = "default";
+			CacheServerEnableDownload = false;
+			CacheServerEnableUpload = false;
 		}
 
 		public static EditorSettings CreateVirtualInstance(VirtualSerializedFile virtualFile)
@@ -41,6 +47,11 @@ namespace uTinyRipper.Classes
 
 		public static int ToSerializedVersion(Version version)
 		{
+			// UseLegacyProbeSampleCount default value has been changed from 1 to custom?
+			if (version.IsGreaterEqual(2019, 3))
+			{
+				return 9;
+			}
 			// 'asmref' has been added to default ProjectGenerationIncludedExtensions
 			if (version.IsGreaterEqual(2019, 2))
 			{
@@ -142,9 +153,21 @@ namespace uTinyRipper.Classes
 		/// </summary>
 		public static bool HasAsyncShaderCompilation(Version version) => version.IsGreaterEqual(2019, 1, 0, VersionType.Beta, 6);
 		/// <summary>
+		/// 2019.3 and greater
+		/// </summary>
+		public static bool HasEnterPlayModeOptions(Version version) => version.IsGreaterEqual(2019, 3);
+		/// <summary>
 		/// 2019.2 and greater
 		/// </summary>
 		public static bool HasShowLightmapResolutionOverlay(Version version) => version.IsGreaterEqual(2019, 2);
+		/// <summary>
+		/// 2019.3 and greater
+		/// </summary>
+		public static bool HasUseLegacyProbeSampleCount(Version version) => version.IsGreaterEqual(2019, 3);
+		/// <summary>
+		/// 2019.3.0b7 and greater
+		/// </summary>
+		public static bool HasAssetPipelineMode(Version version) => version.IsGreaterEqual(2019, 3, 0, VersionType.Beta, 7);
 
 		/// <summary>
 		/// 2018.2 and greater
@@ -268,12 +291,35 @@ namespace uTinyRipper.Classes
 				reader.AlignStream();
 			}
 
+			if (HasEnterPlayModeOptions(reader.Version))
+			{
+				EnterPlayModeOptionsEnabled = reader.ReadBoolean();
+				reader.AlignStream();
+
+				EnterPlayModeOptions = (EnterPlayModeOptions)reader.ReadInt32();
+			}
 			if (HasShowLightmapResolutionOverlay(reader.Version))
 			{
 				ShowLightmapResolutionOverlay = reader.ReadBoolean();
 			}
 			if (IsAlign2(reader.Version))
 			{
+				reader.AlignStream();
+			}
+
+			if (HasUseLegacyProbeSampleCount(reader.Version))
+			{
+				UseLegacyProbeSampleCount = reader.ReadInt32();
+				reader.AlignStream();
+			}
+			if (HasAssetPipelineMode(reader.Version))
+			{
+				AssetPipelineMode = (AssetPipelineMode)reader.ReadInt32();
+				CacheServerMode = (CacheServerMode)reader.ReadInt32();
+				CacheServerEndpoint = reader.ReadString();
+				CacheServerNamespacePrefix = reader.ReadString();
+				CacheServerEnableDownload = reader.ReadBoolean();
+				CacheServerEnableUpload = reader.ReadBoolean();
 				reader.AlignStream();
 			}
 		}
@@ -316,9 +362,27 @@ namespace uTinyRipper.Classes
 			{
 				node.Add(AsyncShaderCompilationName, GetAsyncShaderCompilation(container.Version));
 			}
+			if (HasEnterPlayModeOptions(container.ExportVersion))
+			{
+				node.Add(EnterPlayModeOptionsEnabledName, EnterPlayModeOptionsEnabled);
+				node.Add(EnterPlayModeOptionsName, (int)GetEnterPlayModeOptions(container.Version));
+			}
 			if (HasShowLightmapResolutionOverlay(container.ExportVersion))
 			{
 				node.Add(ShowLightmapResolutionOverlayName, GetShowLightmapResolutionOverlay(container.Version));
+			}
+			if (HasUseLegacyProbeSampleCount(container.ExportVersion))
+			{
+				node.Add(UseLegacyProbeSampleCountName, GetUseLegacyProbeSampleCount(container.Version));
+			}
+			if (HasAssetPipelineMode(container.ExportVersion))
+			{
+				node.Add(AssetPipelineModeName, (int)AssetPipelineMode);
+				node.Add(CacheServerModeName, (int)CacheServerMode);
+				node.Add(CacheServerEndpointName, GetCacheServerEndpoint(container.Version));
+				node.Add(CacheServerNamespacePrefixName, GetCacheServerNamespacePrefix(container.Version));
+				node.Add(CacheServerEnableDownloadName, CacheServerEnableDownload);
+				node.Add(CacheServerEnableUploadName, CacheServerEnableUpload);
 			}
 			return node;
 		}
@@ -372,9 +436,25 @@ namespace uTinyRipper.Classes
 		{
 			return HasAsyncShaderCompilation(version) ? AsyncShaderCompilation : true;
 		}
+		public EnterPlayModeOptions GetEnterPlayModeOptions(Version version)
+		{
+			return HasEnterPlayModeOptions(version) ? EnterPlayModeOptions : EnterPlayModeOptions.DisableDomainReload | EnterPlayModeOptions.DisableSceneReload;
+		}
 		private bool GetShowLightmapResolutionOverlay(Version version)
 		{
 			return HasShowLightmapResolutionOverlay(version) ? ShowLightmapResolutionOverlay : true;
+		}
+		private int GetUseLegacyProbeSampleCount(Version version)
+		{
+			return HasUseLegacyProbeSampleCount(version) ? UseLegacyProbeSampleCount : 1;
+		}
+		private string GetCacheServerEndpoint(Version version)
+		{
+			return HasAssetPipelineMode(version) ? CacheServerEndpoint : string.Empty;
+		}
+		private string GetCacheServerNamespacePrefix(Version version)
+		{
+			return HasAssetPipelineMode(version) ? CacheServerNamespacePrefix : "default";
 		}
 
 		public string ExternalVersionControlSupport { get; set; }
@@ -395,7 +475,16 @@ namespace uTinyRipper.Classes
 		public bool EnableTextureStreamingInEditMode { get; set; }
 		public bool EnableTextureStreamingInPlayMode { get; set; }
 		public bool AsyncShaderCompilation { get; set; }
+		public bool EnterPlayModeOptionsEnabled { get; set; }
+		public EnterPlayModeOptions EnterPlayModeOptions { get; set; }
 		public bool ShowLightmapResolutionOverlay { get; set; }
+		public int UseLegacyProbeSampleCount { get; set; }
+		public AssetPipelineMode AssetPipelineMode { get; set; }
+		public CacheServerMode CacheServerMode { get; set; }
+		public string CacheServerEndpoint { get; set; }
+		public string CacheServerNamespacePrefix { get; set; }
+		public bool CacheServerEnableDownload { get; set; }
+		public bool CacheServerEnableUpload { get; set; }
 
 		public const string ExternalVersionControlSupportName = "m_ExternalVersionControlSupport";
 		public const string SerializationModeName = "m_SerializationMode";
@@ -416,7 +505,16 @@ namespace uTinyRipper.Classes
 		public const string EnableTextureStreamingInEditModeName = "m_EnableTextureStreamingInEditMode";
 		public const string EnableTextureStreamingInPlayModeName = "m_EnableTextureStreamingInPlayMode";
 		public const string AsyncShaderCompilationName = "m_AsyncShaderCompilation";
+		public const string EnterPlayModeOptionsEnabledName = "m_EnterPlayModeOptionsEnabled";
+		public const string EnterPlayModeOptionsName = "m_EnterPlayModeOptions";
 		public const string ShowLightmapResolutionOverlayName = "m_ShowLightmapResolutionOverlay";
+		public const string UseLegacyProbeSampleCountName = "m_UseLegacyProbeSampleCount";
+		public const string AssetPipelineModeName = "m_AssetPipelineMode";
+		public const string CacheServerModeName = "m_CacheServerMode";
+		public const string CacheServerEndpointName = "m_CacheServerEndpoint";
+		public const string CacheServerNamespacePrefixName = "m_CacheServerNamespacePrefix";
+		public const string CacheServerEnableDownloadName = "m_CacheServerEnableDownload";
+		public const string CacheServerEnableUploadName = "m_CacheServerEnableUpload";
 
 		public PPtr<SceneAsset> PrefabRegularEnvironment;
 		public PPtr<SceneAsset> PrefabUIEnvironment;
