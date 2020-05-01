@@ -5,6 +5,11 @@ namespace uTinyRipper
 {
 	public abstract class FileList
 	{
+		public FileList(string name)
+		{
+			Name = name;
+		}
+
 		public IEnumerable<SerializedFile> FetchSerializedFiles()
 		{
 			foreach (SerializedFile file in SerializedFiles)
@@ -40,7 +45,7 @@ namespace uTinyRipper
 
 		internal void AddFile(GameProcessorContext context, FileScheme scheme)
 		{
-			switch(scheme.SchemeType)
+			switch (scheme.SchemeType)
 			{
 				case FileEntryType.Serialized:
 					{
@@ -98,6 +103,8 @@ namespace uTinyRipper
 		protected virtual void OnResourceFileAdded(ResourceFile resource)
 		{
 		}
+
+		public string Name { get; }
 
 		public IReadOnlyList<SerializedFile> SerializedFiles => m_serializedFiles;
 		public IReadOnlyList<FileList> FileLists => m_fileLists;

@@ -30,7 +30,8 @@ namespace uTinyRipper
 			public Func<string, string> RequestResourceCallback { get; set; }
 		}
 
-		public GameCollection(Parameters pars)
+		public GameCollection(Parameters pars):
+			base(nameof(GameCollection))
 		{
 			Layout = pars.Layout;
 			m_layouts.Add(Layout.Info, Layout);
@@ -261,7 +262,7 @@ namespace uTinyRipper
 
 		private bool IsSceneSerializedFile(SerializedFile file)
 		{
-			foreach (AssetEntry entry in file.Metadata.Entries)
+			foreach (ObjectInfo entry in file.Metadata.Object)
 			{
 				if (entry.ClassID.IsSceneSettings())
 				{
@@ -293,6 +294,7 @@ namespace uTinyRipper
 		}
 
 		public AssetLayout Layout { get; }
+
 		public ProjectExporter Exporter { get; }
 		public AssetFactory AssetFactory { get; } = new AssetFactory();
 		public IReadOnlyDictionary<string, SerializedFile> GameFiles => m_files;

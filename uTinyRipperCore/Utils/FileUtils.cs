@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 
 namespace uTinyRipper
 {
@@ -79,31 +78,50 @@ namespace uTinyRipper
 
 		public static string ToLongPath(string path)
 		{
-			if (path.StartsWith(DirectoryUtils.LongPathPrefix, StringComparison.Ordinal))
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
-				return path;
-			}
+				if (RunetimeUtils.IsRunningOnNetCore)
+				{
+					return path;
+				}
+				if (path.StartsWith(DirectoryUtils.LongPathPrefix, StringComparison.Ordinal))
+				{
+					return path;
+				}
 
-			string fullPath = Path.IsPathRooted(path) ? path : Path.GetFullPath(path);
-			int sepIndex = fullPath.LastIndexOf(Path.DirectorySeparatorChar);
-			int asepIndex = fullPath.LastIndexOf(Path.AltDirectorySeparatorChar);
-			int index = Math.Max(sepIndex, asepIndex);
-			if (fullPath.Length - index > MaxFileNameLength)
-			{
-				// file name is too long. need to shrink
-				fullPath = $"{DirectoryUtils.LongPathPrefix}{fullPath}";
-				string directory = Path.GetDirectoryName(fullPath);
-				string fileName = Path.GetFileNameWithoutExtension(fullPath);
-				string extension = Path.GetExtension(fullPath);
-				fileName = fileName.Substring(0, MaxFileNameLength - extension.Length - 1);
-				return Path.Combine(directory, fileName + extension);
-			}
-			else if (fullPath.Length >= MaxFilePathLength)
-			{
-				// name is ok but whole path is too long. just add a prefix
-				return $"{DirectoryUtils.LongPathPrefix}{fullPath}";
+				string fullPath = GetFullPath(path);
+				int sepIndex = fullPath.LastIndexOf(Path.DirectorySeparatorChar);
+				int asepIndex = fullPath.LastIndexOf(Path.AltDirectorySeparatorChar);
+				int index = Math.Max(sepIndex, asepIndex);
+				if (fullPath.Length - index > MaxFileNameLength)
+				{
+					// file name is too long. need to shrink
+					fullPath = $"{DirectoryUtils.LongPathPrefix}{fullPath}";
+					string directory = Path.GetDirectoryName(fullPath);
+					string fileName = Path.GetFileNameWithoutExtension(fullPath);
+					string extension = Path.GetExtension(fullPath);
+					fileName = fileName.Substring(0, MaxFileNameLength - extension.Length - 1);
+					return Path.Combine(directory, fileName + extension);
+				}
+				else if (fullPath.Length >= MaxFilePathLength)
+				{
+					// name is ok but whole path is too long. just add a prefix
+					return $"{DirectoryUtils.LongPathPrefix}{fullPath}";
+				}
 			}
 			return path;
+		}
+
+		public static string GetFullPath(string path)
+		{
+			if (Path.IsPathRooted(path))
+			{
+				return path.Replace('/', '\\');
+			}
+			else
+			{
+				return Path.GetFullPath(path);
+			}
 		}
 
 		public static string GetUniqueName(string dirPath, string fileName)
@@ -120,54 +138,54 @@ namespace uTinyRipper
 			if (validFileName.Length > maxLength)
 			{
 				ext = Path.GetExtension(validFileName);
-				name = Path.GetFileNameWithoutExtension(validFileName).Substring(0, maxLength - ext.Length);
+				name = validFileName.Substring(0, maxLength - ext.Length);
 				validFileName = name + ext;
 			}
 
-			dirPath = DirectoryUtils.ToLongPath(dirPath);
+			dirPath = DirectoryUtils.ToLongPath(dirPath, true);
 			if (!Directory.Exists(dirPath))
 			{
 				return validFileName;
 			}
 
-			string filePath = ToLongPath(Path.Combine(dirPath, validFileName));
-			if (!File.Exists(filePath))
+			name = name ?? Path.GetFileNameWithoutExtension(validFileName);
+			if (!IsReservedName(name))
 			{
-				return validFileName;
+				if (!File.Exists(Path.Combine(dirPath, validFileName)))
+				{
+					return validFileName;
+				}
 			}
 
 			ext = ext ?? Path.GetExtension(validFileName);
-			name = name ?? Path.GetFileNameWithoutExtension(validFileName);
-
-			string escapedName = Regex.Escape(name);
-			List<string> files = new List<string>();
-			DirectoryInfo dirInfo = new DirectoryInfo(DirectoryUtils.ToLongPath(dirPath, true));
-			Regex regex = new Regex($@"(?i)^{escapedName}(_[\d]+)?\.[^\.]+$");
-			foreach (FileInfo fileInfo in dirInfo.EnumerateFiles($"{name}_*{ext}"))
+			for (int counter = 0; counter < int.MaxValue; counter++)
 			{
-				if (regex.IsMatch(fileInfo.Name))
+				string proposedName = $"{name}_{counter}{ext}";
+				if (!File.Exists(Path.Combine(dirPath, proposedName)))
 				{
-					files.Add(fileInfo.Name.ToLower());
-				}
-			}
-			if (files.Count == 0)
-			{
-				return $"{name}_0{ext}";
-			}
-
-			string lowName = name.ToLower();
-			for (int i = 1; i < int.MaxValue; i++)
-			{
-				string newName = $"{lowName}_{i}.";
-				if (files.All(t => !t.StartsWith(newName, StringComparison.Ordinal)))
-				{
-					return $"{name}_{i}{ext}";
+					return proposedName;
 				}
 			}
 			throw new Exception($"Can't generate unique name for file {fileName} in directory {dirPath}");
 		}
 
+		public static bool IsReservedName(string name)
+		{
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				return s_reservedNames.Contains(name.ToLower());
+			}
+			return false;
+		}
+
 		public const int MaxFileNameLength = 256;
 		public const int MaxFilePathLength = 260;
+
+		private static readonly HashSet<string> s_reservedNames = new HashSet<string>()
+		{
+			"aux", "con", "nul", "prn",
+			"com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+			"lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+		};
 	}
 }

@@ -1,9 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.IO;
 using uTinyRipper.Classes.ResourceManagers;
 using uTinyRipper.YAML;
-using System;
 using uTinyRipper.Converters;
 
 namespace uTinyRipper.Classes
@@ -19,51 +17,6 @@ namespace uTinyRipper.Classes
 		/// 3.5.0 and greater and Release
 		/// </summary>
 		public static bool HasDependentAssets(Version version, TransferInstructionFlags flags) => version.IsGreaterEqual(3, 5) && flags.IsRelease();
-
-		public static string ResourceToExportPath(Object asset, string resourceName)
-		{
-			bool replace = false;
-			string validName = asset.TryGetName();
-			if (validName.Length > 0)
-			{
-				if (validName != resourceName && resourceName.EndsWith(validName, StringComparison.OrdinalIgnoreCase))
-				{
-					if (validName.Length == resourceName.Length)
-					{
-						replace = true;
-					}
-					else if (resourceName[resourceName.Length - validName.Length - 1] == DirectorySeparator)
-					{
-						replace = true;
-					}
-				}
-			}
-
-			if (replace)
-			{
-				string directoryPath = resourceName.Substring(0, resourceName.Length - validName.Length);
-				return Path.Combine(AssetsKeyword, ResourceKeyword, directoryPath + validName);
-			}
-			else
-			{
-				return Path.Combine(AssetsKeyword, ResourceKeyword, resourceName);
-			}
-		}
-
-		public bool TryGetResourcePathFromAsset(Object asset, out string resourcePath)
-		{
-			foreach (KeyValuePair<string, PPtr<Object>> containerEntry in Container)
-			{
-				if (containerEntry.Value.IsAsset(File, asset))
-				{
-					resourcePath = ResourceToExportPath(asset, containerEntry.Key);
-					return true;
-				}
-			}
-
-			resourcePath = string.Empty;
-			return false;
-		}
 
 		public override void Read(AssetReader reader)
 		{
@@ -109,9 +62,6 @@ namespace uTinyRipper.Classes
 		
 		public KeyValuePair<string, PPtr<Object>>[] Container { get; set; }
 		public ResourceManagerDependency[] DependentAssets { get; set; }
-
-		public const string ResourceKeyword = "Resources";
-		public const char DirectorySeparator = '/';
 
 		public const string ContainerName = "m_Container";
 		public const string DependentAssetsName = "m_DependentAssets";

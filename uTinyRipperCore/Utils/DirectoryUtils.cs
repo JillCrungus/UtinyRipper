@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace uTinyRipper
 {
@@ -59,15 +60,22 @@ namespace uTinyRipper
 
 		public static string ToLongPath(string path, bool force)
 		{
-			if (path.StartsWith(LongPathPrefix, StringComparison.Ordinal))
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
-				return path;
-			}
+				if (RunetimeUtils.IsRunningOnNetCore)
+				{
+					return path;
+				}
+				if (path.StartsWith(LongPathPrefix, StringComparison.Ordinal))
+				{
+					return path;
+				}
 
-			string fullPath = Path.IsPathRooted(path) ? path : Path.GetFullPath(path);
-			if (force || fullPath.Length >= MaxDirectoryLength)
-			{
-				return $"{LongPathPrefix}{fullPath}";
+				string fullPath = FileUtils.GetFullPath(path);
+				if (force || fullPath.Length >= MaxDirectoryLength)
+				{
+					return $"{LongPathPrefix}{fullPath}";
+				}
 			}
 			return path;
 		}

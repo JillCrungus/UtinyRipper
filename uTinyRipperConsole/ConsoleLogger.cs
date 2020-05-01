@@ -7,10 +7,17 @@ namespace uTinyRipperConsole
 	{
 		public ConsoleLogger()
 		{
-			if(!RunetimeUtils.IsRunningOnMono)
+			if (IsConsoleConfigAvailable)
 			{
-				Console.WindowWidth = (int)(Console.LargestWindowWidth * 0.8f);
-				Console.BufferHeight = 2000;
+				try
+				{
+					Console.WindowWidth = (int)(Console.LargestWindowWidth * 0.8f);
+					Console.BufferHeight = 2000;
+				}
+				catch
+				{
+					// pull/563 : happens when running in any context where the console is not actually attached to a TTY
+				}
 			}
 		}
 
@@ -52,5 +59,17 @@ namespace uTinyRipperConsole
 		}
 
 		public static ConsoleLogger Instance { get; } = new ConsoleLogger();
+
+		private static bool IsConsoleConfigAvailable
+		{
+			get
+			{
+#if NET_CORE
+				return System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows);
+#else
+				return !RunetimeUtils.IsRunningOnMono;
+#endif
+			}
+		}
 	}
 }

@@ -5,7 +5,8 @@ namespace uTinyRipper
 {
 	public sealed class ArchiveFile : FileList
 	{
-		internal ArchiveFile(ArchiveFileScheme scheme)
+		internal ArchiveFile(ArchiveFileScheme scheme) :
+			base(scheme.NameOrigin)
 		{
 			Header = scheme.Header;
 		}

@@ -16,6 +16,7 @@ namespace DXShaderRestorer
 			NameIndex = param.NameIndex;
 			Index = param.Index;
 			ArraySize = param.ArraySize;
+			Length = (uint)(param.RowCount * param.ColumnCount * 4);
 		}
 
 		public Variable(VectorParameter param, ShaderGpuProgramType programType)
@@ -25,6 +26,7 @@ namespace DXShaderRestorer
 			NameIndex = param.NameIndex;
 			Index = param.Index;
 			ArraySize = param.ArraySize;
+			Length = (uint)(param.Dim * 4);
 		}
 
 		public Variable(StructParameter param, ShaderGpuProgramType programType)
@@ -39,14 +41,25 @@ namespace DXShaderRestorer
 		public static Variable CreateDummyVariable(string name, int index, int sizeToAdd, ShaderGpuProgramType programType)
 		{
 			if (sizeToAdd % 4 != 0 || sizeToAdd <= 0) throw new Exception($"Invalid dummy variable size {sizeToAdd}");
+			
+			//Constant Buffer indices have a stride of 16 bytes
+			var alignIndex = index % 16;
+			if (alignIndex != 0)
+			{
+				index += 16 - alignIndex;
+				sizeToAdd -= 16 - alignIndex;
+			}
+			sizeToAdd -= sizeToAdd % 16;
+
 			Variable variable = new Variable();
-			var param = new VectorParameter(name, ShaderParamType.Int, index, sizeToAdd / 4, 0);
+			var param = new VectorParameter(name, ShaderParamType.Float, index, sizeToAdd / 16, 4);
 			variable.ShaderType = new ShaderType(param, programType);
 			variable.Name = name ?? throw new Exception("Variable name cannot be null");
 			variable.NameIndex = -1;
 			variable.Index = index;
 			variable.ArraySize = param.ArraySize;
 			variable.Type = ShaderParamType.Int;
+			variable.Length = (uint)sizeToAdd;
 			return variable;
 		}
 

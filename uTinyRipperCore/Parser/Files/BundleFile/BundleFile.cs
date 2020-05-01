@@ -6,7 +6,8 @@ namespace uTinyRipper
 {
 	public sealed class BundleFile : FileList
 	{
-		internal BundleFile(BundleFileScheme scheme)
+		internal BundleFile(BundleFileScheme scheme):
+			base(scheme.NameOrigin)
 		{
 			if (scheme == null)
 			{

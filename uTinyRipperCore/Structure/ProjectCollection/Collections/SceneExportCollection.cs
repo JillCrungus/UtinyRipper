@@ -50,7 +50,7 @@ namespace uTinyRipper.Project
 			}
 			if (GUID.IsZero)
 			{
-				GUID = new GUID(Guid.NewGuid());
+				GUID = new UnityGUID(Guid.NewGuid());
 			}
 
 			if (OcclusionCullingSettings.HasReadPVSData(File.Version))
@@ -166,7 +166,7 @@ namespace uTinyRipper.Project
 			}
 			else
 			{
-				GUID guid = IsComponent(asset) ? GUID : asset.GUID;
+				UnityGUID guid = IsComponent(asset) ? GUID : asset.GUID;
 				return new MetaPtr(exportID, guid, AssetType.Serialized);
 			}				
 		}
@@ -226,7 +226,7 @@ namespace uTinyRipper.Project
 					string extension = Path.GetExtension(scenePath);
 					return relativePath.Substring(0, relativePath.Length - extension.Length);
 				}
-				else if (scenePath == string.Empty)
+				else if (scenePath.Length == 0)
 				{
 					// if you build a game without included scenes, Unity create one with empty name
 					return Name;
@@ -270,7 +270,7 @@ namespace uTinyRipper.Project
 		public override ISerializedFile File => m_file;
 
 		public OcclusionCullingData OcclusionCullingData { get; }
-		public GUID GUID { get; }
+		public UnityGUID GUID { get; }
 
 		private IEnumerable<Object> Components => m_components;
 

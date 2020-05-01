@@ -19,7 +19,7 @@ namespace uTinyRipper.Converters
 			return new MetaPtr(ExportID, GUID, AssetType.Internal);
 		}
 
-		public GUID GUID => m_isF ? EngineBuiltInAssets.FGUID : EngineBuiltInAssets.EGUID;
+		public UnityGUID GUID => m_isF ? EngineBuiltInAssets.FGUID : EngineBuiltInAssets.EGUID;
 
 		public bool IsValid => ExportID != 0;
 		public uint ExportID { get; }
@@ -309,6 +309,7 @@ namespace uTinyRipper.Converters
 			AddShader("Hidden/Internal-GUIRoundedRect", 9004, true);
 			AddShader("Hidden/Internal-UIRDefault", 9005, true);
 			AddShader("Hidden/Internal-UIRAtlasBlitCopy", 9006, true);
+			AddShader("Hidden/Internal-GUIRoundedRectWithColorPerBorder", 9007, true);
 			AddShader("Hidden/Nature/Terrain/Utilities", 10490, true);
 			AddShader("Hidden/TerrainEngine/Details/Vertexlit", 10500, true);
 			AddShader("Hidden/TerrainEngine/Details/WavingDoublePass", 10501, true);
@@ -402,6 +403,7 @@ namespace uTinyRipper.Converters
 			AddShader("Hidden/VideoDecodeAndroid", 16002, true);
 			AddShader("Hidden/Compositing", 17000, true);
 			AddShader("Hidden/TerrainEngine/PaintHeight", 18000, true);
+			AddShader("Hidden/TerrainEngine/HeightBlitCopy", 18001, true);
 			AddShader("Hidden/TerrainEngine/GenerateNormalmap", 18002, true);
 			AddShader("Hidden/TerrainEngine/TerrainLayerUtils", 18003, true);
 			AddShader("Hidden/TerrainEngine/BrushPreview", 18004, true);
@@ -816,9 +818,9 @@ namespace uTinyRipper.Converters
 		public const string TerrainWavingDoublePass = "Hidden/TerrainEngine/Details/WavingDoublePass";
 		public const string TerrainBillboardWavingDoublePass = "Hidden/TerrainEngine/Details/BillboardWavingDoublePass";
 
-		public static readonly GUID DGUID = new GUID(0x00000000, 0x00000000, 0x0000000D, 0x00000000);
-		public static readonly GUID EGUID = new GUID(0x00000000, 0x00000000, 0x0000000E, 0x00000000);
-		public static readonly GUID FGUID = new GUID(0x00000000, 0x00000000, 0x0000000F, 0x00000000);
+		public static readonly UnityGUID DGUID = new UnityGUID(0x00000000, 0x00000000, 0x0000000D, 0x00000000);
+		public static readonly UnityGUID EGUID = new UnityGUID(0x00000000, 0x00000000, 0x0000000E, 0x00000000);
+		public static readonly UnityGUID FGUID = new UnityGUID(0x00000000, 0x00000000, 0x0000000F, 0x00000000);
 
 		private static Dictionary<string, EngineBuiltInAssetInfo> m_materials = new Dictionary<string, EngineBuiltInAssetInfo>();
 		private static Dictionary<string, EngineBuiltInAssetInfo> m_textures = new Dictionary<string, EngineBuiltInAssetInfo>();
